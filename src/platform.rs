@@ -10,60 +10,6 @@
 
 pub use imp::*;
 
-/// Rewrite a POSIX-style command for `cmd.exe`, the shell on Windows:
-/// `$NAME` becomes `%NAME%`, and leading `NAME=value` assignments become
-/// `set "NAME=value" &&`.
-#[cfg_attr(unix, allow(dead_code))] // Used on Windows; tested everywhere.
-pub fn posix_to_cmd(command: &str) -> String {
-    let mut rest = command.trim();
-    let mut out = String::new();
-    while let Some((word, tail)) = rest.split_once(' ') {
-        let is_assignment = word.split_once('=').is_some_and(|(name, _)| is_var_name(name));
-        if !is_assignment {
-            break;
-        }
-        out.push_str(&format!("set \"{}\" && ", expand_vars(word)));
-        rest = tail.trim_start();
-    }
-    out.push_str(&expand_vars(rest));
-    out
-}
-
-#[cfg_attr(unix, allow(dead_code))]
-fn is_var_name(s: &str) -> bool {
-    let mut chars = s.chars();
-    chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-}
-
-#[cfg_attr(unix, allow(dead_code))]
-fn expand_vars(s: &str) -> String {
-    let mut out = String::new();
-    let mut chars = s.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c != '$' {
-            out.push(c);
-            continue;
-        }
-        let mut name = String::new();
-        while let Some(&n) = chars.peek() {
-            if n.is_ascii_alphanumeric() || n == '_' {
-                name.push(n);
-                chars.next();
-            } else {
-                break;
-            }
-        }
-        if is_var_name(&name) {
-            out.push_str(&format!("%{name}%"));
-        } else {
-            out.push('$');
-            out.push_str(&name);
-        }
-    }
-    out
-}
-
 #[cfg(unix)]
 mod imp {
     use std::io;
@@ -300,29 +246,14 @@ mod imp {
         }
     }
 
-    /// `command` rewritten for and run by `cmd.exe`, which also finds the
+    /// `command` translated for and run by `cmd.exe`, which also finds the
     /// `.cmd` shims npm installs. Passed raw: `/s` strips the outer quotes and
     /// leaves the command exactly as written, which Rust's argument quoting
     /// wouldn't.
     pub fn shell(command: &str) -> io::Result<Command> {
+        let translated = crate::wincmd::translate(command).map_err(io::Error::other)?;
         let mut cmd = self::command("cmd");
-        cmd.raw_arg(format!("/d /s /c \"{}\"", super::posix_to_cmd(command)));
+        cmd.raw_arg(format!("/d /s /c \"{translated}\""));
         Ok(cmd)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::posix_to_cmd;
-
-    #[test]
-    fn cmd_rewrites() {
-        assert_eq!(posix_to_cmd("trunk serve --port $PORT"), "trunk serve --port %PORT%");
-        assert_eq!(
-            posix_to_cmd("LEPTOS_SITE_ADDR=127.0.0.1:$PORT cargo leptos watch"),
-            "set \"LEPTOS_SITE_ADDR=127.0.0.1:%PORT%\" && cargo leptos watch"
-        );
-        assert_eq!(posix_to_cmd("echo $5 a=b"), "echo $5 a=b");
-        assert_eq!(posix_to_cmd("pnpm dev"), "pnpm dev");
     }
 }

@@ -254,6 +254,10 @@ mod tests {
         let dir = project(files);
         let r = detect(&dir).map(|r| r.command);
         fs::remove_dir_all(dir).unwrap();
+        // Every suggestion has to run on Windows too.
+        if let Some(c) = &r {
+            crate::wincmd::translate(c).unwrap_or_else(|e| panic!("{c}: {e}"));
+        }
         r
     }
 

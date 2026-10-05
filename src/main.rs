@@ -14,6 +14,8 @@ mod shellenv;
 mod stack;
 #[cfg(test)]
 mod testkit;
+#[cfg_attr(unix, allow(dead_code))] // Used on Windows; tested everywhere.
+mod wincmd;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
