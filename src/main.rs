@@ -5,6 +5,7 @@ mod guardian;
 mod gui;
 mod manager;
 mod process;
+mod shellenv;
 mod stack;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -62,6 +63,7 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    shellenv::import_path();
     let path = Config::path();
     let config = Config::load(&path)?;
     guardian::spawn();
