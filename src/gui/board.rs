@@ -677,7 +677,7 @@ impl Board {
             .pb_5()
             .flex()
             .flex_col()
-            .gap_3()
+            .gap_1p5()
             .child(
                 div()
                     .flex()
@@ -774,7 +774,9 @@ impl Board {
                 div()
                     .relative()
                     .h(px(16.))
-                    .my_1()
+                    // A pause between who the project is and how it's wired.
+                    .mt_4()
+                    .mb_2()
                     .child(sketch::dimension(line()))
                     .child(div().absolute().inset_0().flex().items_center().justify_center().child(ink_tag(route))),
             )
