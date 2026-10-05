@@ -58,7 +58,7 @@ fn main() -> Result<()> {
     }
     if args.iter().any(|a| a == "-h" || a == "--help") {
         println!(
-            "blueprint {}\nRun many dev servers at once through portless, each at https://<name>.localhost.\n\n\
+            "blueprint {}\nRun many dev servers at once, each on its own port.\n\n\
              Config: {}\n(override with BLUEPRINT_CONFIG=/path/to/config.toml)",
             env!("CARGO_PKG_VERSION"),
             Config::path().display()

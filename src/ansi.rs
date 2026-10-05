@@ -97,6 +97,7 @@ fn clean_into(out: &mut String, text: &str) {
     }
 }
 
+#[cfg(test)]
 pub fn strip(s: &str) -> String {
     parse(s).text
 }

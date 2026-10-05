@@ -1,19 +1,16 @@
-//! The UI-independent core: projects, their processes, and the portless proxy.
+//! The UI-independent core: projects and their processes.
 
 use std::collections::VecDeque;
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
-use std::process::Stdio;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
-use crate::config::{self, Config, Project, validate_name};
-use crate::process::{self, Event, ProxyStatus, Running};
+use crate::config::{Config, Project, validate_name};
+use crate::process::{self, Event, Running};
 
 const MAX_LOG_LINES: usize = 5000;
 pub const MESSAGE_TTL: Duration = Duration::from_secs(6);
-/// Give up waiting for a setup terminal after this long.
-const SETUP_TIMEOUT: Duration = Duration::from_secs(600);
 
 pub type Id = u64;
 
@@ -22,13 +19,11 @@ pub struct Entry {
     pub id: Id,
     pub project: Project,
     pub run: Option<Running>,
-    /// Waiting for the proxy to come up before spawning.
-    pub queued: bool,
     /// Start again as soon as the current process exits.
     pub restart: bool,
     pub last_exit: Option<i32>,
-    pub url: Option<String>,
-    /// The port the dev server was told to use (fixed or assigned by portless).
+    /// The port the server was last given in `PORT`. Kept after it stops so
+    /// an auto-assigned port is reused on the next start.
     pub app_port: Option<u16>,
     /// The dev server accepts connections.
     pub ready: bool,
@@ -40,8 +35,6 @@ pub struct Entry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Stopped,
-    /// Queued until the proxy is up.
-    Waiting,
     /// Process running, server not accepting connections yet.
     Starting,
     Running,
@@ -55,14 +48,24 @@ impl Entry {
             Some(r) if r.stopping() => Status::Stopping,
             Some(_) if self.ready => Status::Running,
             Some(_) => Status::Starting,
-            None if self.queued => Status::Waiting,
             None if self.last_exit.is_some_and(|c| c != 0) => Status::Crashed,
             None => Status::Stopped,
         }
     }
 
     pub fn is_active(&self) -> bool {
-        self.run.is_some() || self.queued
+        self.run.is_some()
+    }
+
+    /// The port the server listens on: its fixed one, or the one it was given
+    /// while it runs.
+    pub fn port(&self) -> Option<u16> {
+        self.project.port.or(self.app_port.filter(|_| self.run.is_some()))
+    }
+
+    /// Where to open it, once its port is known.
+    pub fn url(&self) -> Option<String> {
+        self.port().map(|p| format!("http://localhost:{p}"))
     }
 
     fn log(&mut self, line: impl Into<String>) {
@@ -85,24 +88,6 @@ pub enum MsgKind {
     Error,
 }
 
-/// One-time root setup for a privileged proxy port (443).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Setup {
-    None,
-    /// Projects are waiting; ask the user how to bring the proxy up.
-    Needed,
-    /// A terminal is open running the setup; poll until the proxy appears.
-    Waiting(Instant),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SetupKind {
-    /// `portless service install`: starts on boot, trusts the certificate.
-    Service,
-    /// `portless proxy start`: until reboot.
-    Once,
-}
-
 /// Which form field a validation error belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Field {
@@ -116,13 +101,8 @@ pub struct Manager {
     pub config: Config,
     config_path: PathBuf,
     pub entries: Vec<Entry>,
-    pub proxy: ProxyStatus,
-    proxy_checked: Instant,
     ready_checked: Instant,
-    proxy_busy: bool,
-    pub portless_ok: bool,
     pub message: Option<(String, MsgKind, Instant)>,
-    pub setup: Setup,
     next_id: Id,
     tx: Sender<Event>,
     rx: Receiver<Event>,
@@ -134,13 +114,8 @@ impl Manager {
         let mut m = Self {
             config_path,
             entries: Vec::new(),
-            proxy: process::proxy_status(),
-            proxy_checked: Instant::now(),
             ready_checked: Instant::now(),
-            proxy_busy: false,
-            portless_ok: process::portless_installed(),
             message: None,
-            setup: Setup::None,
             next_id: 0,
             tx,
             rx,
@@ -148,9 +123,6 @@ impl Manager {
         };
         for p in m.config.projects.clone() {
             m.push_entry(p);
-        }
-        if !m.portless_ok {
-            m.error("portless isn't installed. Run: npm i -g portless");
         }
         m
     }
@@ -161,10 +133,8 @@ impl Manager {
             id: self.next_id,
             project,
             run: None,
-            queued: false,
             restart: false,
             last_exit: None,
-            url: None,
             app_port: None,
             ready: false,
             logs: VecDeque::new(),
@@ -189,33 +159,12 @@ impl Manager {
         self.entries.iter().find(|e| e.id == id)
     }
 
+    pub fn config_path(&self) -> &std::path::Path {
+        &self.config_path
+    }
+
     pub fn running_count(&self) -> usize {
         self.entries.iter().filter(|e| e.run.is_some()).count()
-    }
-
-    /// The port children should talk to: the live proxy's, or the configured one.
-    pub fn effective_proxy_port(&self) -> u16 {
-        if self.proxy.running {
-            self.proxy.port.unwrap_or(self.config.proxy_port)
-        } else {
-            self.config.proxy_port
-        }
-    }
-
-    pub fn url_for(&self, name: &str) -> String {
-        let scheme = if self.proxy.tls { "https" } else { "http" };
-        let port = if self.proxy_ready() { self.effective_proxy_port() } else { self.config.proxy_port };
-        let default = if self.proxy.tls { 443 } else { 80 };
-        if port == default {
-            format!("{scheme}://{name}.localhost")
-        } else {
-            format!("{scheme}://{name}.localhost:{port}")
-        }
-    }
-
-    /// The URL a project gets; portless's own report wins once it's printed.
-    pub fn expected_url(&self, e: &Entry) -> String {
-        e.url.clone().unwrap_or_else(|| self.url_for(&e.project.name))
     }
 
     fn save(&mut self) {
@@ -228,27 +177,15 @@ impl Manager {
     // -----------------------------------------------------------------------
     // Background work
 
-    /// Drain process output, reap exited children and refresh the proxy
-    /// status. Returns whether anything visible changed.
+    /// Drain process output, reap exited children and notice servers that
+    /// started listening. Returns whether anything visible changed.
     pub fn tick(&mut self) -> bool {
         let mut changed = false;
         while let Ok(ev) = self.rx.try_recv() {
             changed = true;
-            match ev {
-                Event::Log { id, line } => {
-                    if let Some(e) = self.entries.iter_mut().find(|e| e.id == id) {
-                        if e.url.is_none()
-                            && let Some(url) = process::parse_url(&line)
-                        {
-                            e.url = Some(url);
-                        }
-                        if e.app_port.is_none() {
-                            e.app_port = process::parse_app_port(&line);
-                        }
-                        e.log(line);
-                    }
-                }
-                Event::ProxyCmd { ok, message } => self.on_proxy_result(ok, message),
+            let Event::Log { id, line } = ev;
+            if let Some(e) = self.entries.iter_mut().find(|e| e.id == id) {
+                e.log(line);
             }
         }
 
@@ -292,8 +229,7 @@ impl Manager {
             self.ready_checked = Instant::now();
             for e in &mut self.entries {
                 if e.run.is_some() && !e.ready {
-                    let port = e.project.port.or(e.app_port);
-                    if port.is_some_and(listening) {
+                    if e.port().is_some_and(listening) {
                         e.ready = true;
                         changed = true;
                     }
@@ -301,59 +237,11 @@ impl Manager {
             }
         }
 
-        if self.proxy_checked.elapsed() >= Duration::from_secs(1) {
-            let before = self.proxy;
-            self.proxy = process::proxy_status();
-            self.proxy_checked = Instant::now();
-            changed |= self.proxy != before;
-            if let Setup::Waiting(since) = self.setup {
-                if self.proxy_ready() {
-                    self.setup = Setup::None;
-                    self.info("The proxy is up");
-                    self.spawn_queued();
-                    changed = true;
-                } else if since.elapsed() > SETUP_TIMEOUT {
-                    self.setup = Setup::None;
-                    self.cancel_queued("the proxy never came up");
-                    changed = true;
-                }
-            }
-        }
         if self.message.as_ref().is_some_and(|(_, _, t)| t.elapsed() > MESSAGE_TTL) {
             self.message = None;
             changed = true;
         }
         changed
-    }
-
-    fn on_proxy_result(&mut self, ok: bool, message: String) {
-        self.proxy_busy = false;
-        self.proxy = process::proxy_status();
-        self.proxy_checked = Instant::now();
-        if ok {
-            self.info(message);
-            self.spawn_queued();
-        } else {
-            self.error(message.clone());
-            self.cancel_queued(&message);
-        }
-    }
-
-    fn spawn_queued(&mut self) {
-        let queued: Vec<Id> = self.entries.iter().filter(|e| e.queued).map(|e| e.id).collect();
-        for id in queued {
-            if let Some(i) = self.index(id) {
-                self.entries[i].queued = false;
-                self.spawn(i);
-            }
-        }
-    }
-
-    fn cancel_queued(&mut self, reason: &str) {
-        for e in self.entries.iter_mut().filter(|e| e.queued) {
-            e.queued = false;
-            e.log(format!("── not started: {reason} ──"));
-        }
     }
 
     // -----------------------------------------------------------------------
@@ -364,13 +252,6 @@ impl Manager {
         let e = &self.entries[i];
         if e.is_active() {
             return;
-        }
-        if !self.portless_ok {
-            self.portless_ok = process::portless_installed();
-            if !self.portless_ok {
-                self.error("portless isn't installed. Run: npm i -g portless");
-                return;
-            }
         }
         if let Some(msg) = missing_command(&e.project.path, &e.project.command) {
             let msg = format!("{} can't start: {msg}", e.project.name);
@@ -386,28 +267,47 @@ impl Manager {
             self.error(msg);
             return;
         }
-        // Start the proxy once ourselves rather than letting several portless
-        // processes race to auto-start it.
-        if !self.proxy_ready() {
-            self.entries[i].queued = true;
-            self.request_proxy_start();
-            return;
-        }
         self.spawn(i);
     }
 
+    /// Ports other projects hold: every fixed port, and the ports running
+    /// projects were given.
+    fn taken_ports(&self, except: usize) -> Vec<u16> {
+        self.entries
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != except)
+            .flat_map(|(_, e)| [e.project.port, e.app_port.filter(|_| e.run.is_some())])
+            .flatten()
+            .collect()
+    }
+
     fn spawn(&mut self, i: usize) {
-        let port = self.effective_proxy_port();
+        let e = &self.entries[i];
+        let command = match e.project.command.trim() {
+            "" => crate::stack::dev_script_command(&e.project.path).unwrap_or_default(),
+            c => c.to_string(),
+        };
+        let port = match e.project.port {
+            Some(p) => Some(p),
+            None => process::free_port(e.app_port, &self.taken_ports(i)),
+        };
+        let Some(port) = port else {
+            let (a, b) = (process::AUTO_PORTS.start(), process::AUTO_PORTS.end());
+            let msg = format!("No free port between {a} and {b} for {}", e.project.name);
+            self.entries[i].log(format!("── {msg} ──"));
+            self.error(msg);
+            return;
+        };
         let tx = self.tx.clone();
         let e = &mut self.entries[i];
         if !e.logs.is_empty() {
             e.log("");
         }
-        e.url = None;
-        e.app_port = None;
+        e.app_port = Some(port);
         e.ready = false;
         e.last_exit = None;
-        match process::spawn(&e.project, port, e.id, tx) {
+        match process::spawn(&e.project, &command, port, e.id, tx) {
             Ok(run) => e.run = Some(run),
             Err(msg) => {
                 e.log(format!("── {msg} ──"));
@@ -419,7 +319,6 @@ impl Manager {
 
     pub fn stop(&mut self, id: Id) {
         let Some(e) = self.entries.iter_mut().find(|e| e.id == id) else { return };
-        e.queued = false;
         e.restart = false;
         if let Some(run) = &mut e.run {
             run.stop();
@@ -462,7 +361,6 @@ impl Manager {
     /// SIGTERM everything, wait for the grace period, then SIGKILL stragglers.
     pub fn shutdown(&mut self) {
         for e in &mut self.entries {
-            e.queued = false;
             if let Some(run) = &mut e.run {
                 run.stop();
             }
@@ -518,9 +416,6 @@ impl Manager {
         if let Some(msg) = missing_command(folder, &command) {
             return Err((Field::Command, msg));
         }
-        if !command.is_empty() {
-            shell_words::split(&command).map_err(|e| (Field::Command, format!("Can't parse this command: {e}")))?;
-        }
         Ok(Project { name, path: folder.clone(), port, command })
     }
 
@@ -536,7 +431,6 @@ impl Manager {
         let e = &mut self.entries[i];
         let changed = e.project != project;
         e.project = project;
-        e.url = None;
         let needs_restart = changed && e.run.is_some();
         self.save();
         needs_restart
@@ -571,112 +465,6 @@ impl Manager {
         self.entries.swap(i, j as usize);
         self.save();
     }
-
-    // -----------------------------------------------------------------------
-    // Proxy
-
-    /// Ports below 1024 (443 for plain `https://name.localhost`) need root.
-    /// Whether the config asks for portless URLs without a port (443 or 80).
-    pub fn wants_clean_urls(&self) -> bool {
-        self.config.proxy_port < 1024
-    }
-
-    pub fn proxy_needs_root(&self) -> bool {
-        // Windows lets anyone listen on low ports.
-        cfg!(unix) && self.wants_clean_urls()
-    }
-
-    /// Port of a running proxy that isn't on the configured port.
-    pub fn stray_proxy_port(&self) -> Option<u16> {
-        self.proxy.port.filter(|&p| self.proxy.running && p != self.config.proxy_port)
-    }
-
-    /// Whether projects can start now. A proxy on another port is fine for an
-    /// unprivileged config, but when the config asks for clean URLs (port 443)
-    /// a leftover `:1355` proxy has to be replaced first.
-    pub fn proxy_ready(&self) -> bool {
-        self.proxy.running && !(self.wants_clean_urls() && self.stray_proxy_port().is_some())
-    }
-
-    fn request_proxy_start(&mut self) {
-        if self.proxy_busy || self.setup != Setup::None {
-            return;
-        }
-        if self.proxy_needs_root() {
-            self.setup = Setup::Needed;
-            return;
-        }
-        self.proxy_busy = true;
-        self.info(format!("Starting the proxy on :{}", self.config.proxy_port));
-        // A proxy on another port has to go first (only reachable here when
-        // no root is needed, i.e. on Windows).
-        let replace = self.stray_proxy_port().is_some();
-        process::proxy_command(true, replace, self.config.proxy_port, self.tx.clone());
-    }
-
-    /// Open a terminal that runs the root setup; `tick` notices the proxy.
-    pub fn run_setup(&mut self, kind: SetupKind) {
-        let port = self.config.proxy_port;
-        let mut steps = Vec::new();
-        if self.stray_proxy_port().is_some() {
-            steps.push("portless proxy stop".to_string());
-        }
-        steps.push(match kind {
-            SetupKind::Service => format!("portless service install -p {port}"),
-            SetupKind::Once => format!("portless proxy start -p {port}"),
-        });
-        match open_terminal("blueprint: one-time proxy setup", &steps) {
-            Ok(()) => self.setup = Setup::Waiting(Instant::now()),
-            Err(e) => {
-                self.setup = Setup::None;
-                self.cancel_queued("couldn't open a terminal");
-                self.error(format!("Couldn't open a terminal: {e}. Run `{}` yourself.", steps.join(" && ")));
-            }
-        }
-    }
-
-    /// Switch to the unprivileged port: URLs get `:1355`, no root needed.
-    pub fn use_fallback_port(&mut self) {
-        self.config.proxy_port = config::FALLBACK_PROXY_PORT;
-        self.save();
-        self.setup = Setup::None;
-        if self.proxy_ready() {
-            self.spawn_queued();
-        } else {
-            self.request_proxy_start();
-        }
-    }
-
-    /// Switch back to port 443 for clean URLs.
-    pub fn use_clean_urls(&mut self) {
-        self.config.proxy_port = config::DEFAULT_PROXY_PORT;
-        self.save();
-    }
-
-    pub fn cancel_setup(&mut self) {
-        self.setup = Setup::None;
-        self.cancel_queued("the proxy isn't running");
-    }
-
-    pub fn toggle_proxy(&mut self) {
-        if self.proxy_busy {
-            return;
-        }
-        if !self.proxy_ready() {
-            self.request_proxy_start();
-            return;
-        }
-        if self.proxy_needs_root() {
-            let steps = [format!("portless proxy stop -p {}", self.config.proxy_port)];
-            if let Err(e) = open_terminal("blueprint: stop the proxy", &steps) {
-                self.error(format!("Couldn't open a terminal: {e}"));
-            }
-            return;
-        }
-        self.proxy_busy = true;
-        self.info("Stopping the proxy");
-        process::proxy_command(false, false, self.config.proxy_port, self.tx.clone());
-    }
 }
 
 /// Whether something accepts TCP connections on localhost:`port`.
@@ -687,66 +475,6 @@ fn listening(port: u16) -> bool {
             .map(|ip| SocketAddr::new(ip, port))
             .is_ok_and(|addr| TcpStream::connect_timeout(&addr, timeout).is_ok())
     })
-}
-
-#[cfg(unix)]
-fn sh_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', r"'\''"))
-}
-
-/// Run `steps` in a new console window. Clean URLs never need it on Windows,
-/// but the proxy commands work the same if it's ever used.
-#[cfg(windows)]
-fn open_terminal(title: &str, steps: &[String]) -> std::io::Result<()> {
-    crate::platform::command("cmd")
-        .args(["/C", "start", title, "cmd", "/K", &steps.join(" && ")])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map(drop)
-}
-
-/// Run shell `steps` in a new terminal window (sudo needs a TTY to ask for a password).
-#[cfg(unix)]
-fn open_terminal(title: &str, steps: &[String]) -> std::io::Result<()> {
-    let path = std::env::var("PATH").unwrap_or_default();
-    let script = format!(
-        "export PATH={path}\n\
-         printf '\\033[1;33m%s\\033[0m\\n\\n' {title}\n\
-         if {steps}; then\n\
-           printf '\\n\\033[32mDone.\\033[0m This window can be closed.\\n'\n\
-         else\n\
-           printf '\\n\\033[31mSomething went wrong (see above).\\033[0m\\n'\n\
-         fi\n\
-         printf 'Press Enter to close'; read _\n",
-        path = sh_quote(&path),
-        title = sh_quote(title),
-        steps = steps.join(" && "),
-    );
-    let launchers: [(&str, &[&str]); 6] = [
-        ("xdg-terminal-exec", &[]),
-        ("x-terminal-emulator", &["-e"]),
-        ("ghostty", &["-e"]),
-        ("kitty", &[]),
-        ("alacritty", &["-e"]),
-        ("foot", &[]),
-    ];
-    let mut last_err = std::io::Error::new(std::io::ErrorKind::NotFound, "no terminal emulator found");
-    for (bin, prefix) in launchers {
-        match std::process::Command::new(bin)
-            .args(prefix)
-            .args(["sh", "-c", &script])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-        {
-            Ok(_) => return Ok(()),
-            Err(e) => last_err = e,
-        }
-    }
-    Err(last_err)
 }
 
 #[cfg(test)]
@@ -777,36 +505,52 @@ mod tests {
         assert!(m.validate(Some(id), "taken", Some(&tmp), "3000", "pnpm dev").is_ok());
     }
 
-    #[test]
-    fn urls() {
-        let mut m = manager();
-        m.proxy = ProxyStatus { running: false, port: None, tls: true };
-        m.config.proxy_port = 443;
-        assert_eq!(m.url_for("shop"), "https://shop.localhost");
-        m.config.proxy_port = 1355;
-        assert_eq!(m.url_for("shop"), "https://shop.localhost:1355");
-    }
-
-    #[test]
-    fn stray_proxy_blocks_clean_urls() {
-        let mut m = manager();
-        m.proxy = ProxyStatus { running: true, port: Some(1355), tls: true };
-        m.config.proxy_port = 443;
-        assert!(!m.proxy_ready());
-        assert_eq!(m.stray_proxy_port(), Some(1355));
-        m.config.proxy_port = 1355;
-        assert!(m.proxy_ready());
-    }
-
+    /// Starts a real server and waits until it answers on the port it was
+    /// given in `PORT`.
     #[cfg(unix)]
     #[test]
-    fn quoting() {
-        assert_eq!(sh_quote("a'b"), r"'a'\''b'");
+    fn runs_a_server_on_its_port() {
+        if std::process::Command::new("python3").arg("--version").output().is_err() {
+            return;
+        }
+        let mut m = manager();
+        let dir = std::env::temp_dir().join(format!("blueprint-run-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let command = "python3 -m http.server $PORT --bind 127.0.0.1".to_string();
+        let id = m.push_entry(Project { name: "web".into(), path: dir.clone(), port: None, command });
+        m.start(id);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while m.get(id).unwrap().status() != Status::Running && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(100));
+            m.tick();
+        }
+        let e = m.get(id).unwrap();
+        assert_eq!(e.status(), Status::Running, "logs: {:?}", e.logs);
+        let port = e.port().unwrap();
+        assert!(process::AUTO_PORTS.contains(&port));
+        assert_eq!(e.url(), Some(format!("http://localhost:{port}")));
+        assert!(e.logs[0].starts_with(&format!("$ PORT={port} python3")));
+        m.shutdown();
+        assert_eq!(m.running_count(), 0);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn urls_follow_the_port() {
+        let mut m = manager();
+        let tmp = std::env::temp_dir();
+        m.push_entry(Project { name: "a".into(), path: tmp.clone(), port: Some(3000), command: String::new() });
+        m.push_entry(Project { name: "b".into(), path: tmp, port: None, command: String::new() });
+        assert_eq!(m.entries[0].url().as_deref(), Some("http://localhost:3000"));
+        // An auto port only counts while the server runs.
+        m.entries[1].app_port = Some(4001);
+        assert_eq!(m.entries[1].url(), None);
+        assert_eq!(m.taken_ports(1), [3000]);
     }
 }
 
-/// Why an empty command can't work in `dir`: `portless run` needs a
-/// package.json dev script (or portless.json). `None` when it's fine.
+/// Why an empty command can't work in `dir`: it means the package.json dev
+/// script. `None` when it's fine.
 pub fn missing_command(dir: &std::path::Path, command: &str) -> Option<String> {
     if !command.trim().is_empty() || crate::stack::has_dev_script(dir) {
         return None;

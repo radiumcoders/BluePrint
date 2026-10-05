@@ -1,6 +1,5 @@
 //! The main window, laid out like a drawing sheet: projects and a title block
-//! on the left, details and logs on the right, plus the add/edit and proxy
-//! setup dialogs.
+//! on the left, details and logs on the right, plus the add/edit dialog.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -17,7 +16,8 @@ use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
 use crate::stack::{self, Recipe};
-use crate::manager::{Entry, Field, Id, Manager, MsgKind, Setup, SetupKind, Status};
+use crate::manager::{Entry, Field, Id, Manager, MsgKind, Status};
+use crate::process;
 
 /// Rendering more lines than this makes long logs sluggish; older ones stay in memory.
 const MAX_RENDERED_LINES: usize = 800;
@@ -136,12 +136,9 @@ impl Board {
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if self.form.is_some() || self.m.setup != Setup::None {
+        if self.form.is_some() {
             if event.keystroke.key == "escape" {
                 self.form = None;
-                if self.m.setup == Setup::Needed {
-                    self.m.cancel_setup();
-                }
                 cx.notify();
             }
             return;
@@ -174,8 +171,8 @@ impl Board {
                 cx.notify();
             }
             "o" => {
-                if let Some(e) = sel.and_then(|id| self.m.get(id)) {
-                    cx.open_url(&self.m.expected_url(e));
+                if let Some(url) = sel.and_then(|id| self.m.get(id)).and_then(Entry::url) {
+                    cx.open_url(&url);
                 }
             }
             "delete" if sel.is_some() => self.remove(sel.unwrap_or_default(), cx),
@@ -491,17 +488,6 @@ impl Board {
     /// The "add project / manage" box, drawn as a drawing's title block.
     fn render_manage(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let m = &self.m;
-        let (dot, proxy) = if !m.portless_ok {
-            (RED, "portless missing".to_string())
-        } else if m.proxy_ready() {
-            let scheme = if m.proxy.tls { "https" } else { "http" };
-            (theme::GREEN, format!("on · {scheme} :{}", m.effective_proxy_port()))
-        } else if matches!(m.setup, Setup::Waiting(_)) {
-            (theme::AMBER, "setting up…".to_string())
-        } else {
-            (FAINT, format!("off · :{}", m.config.proxy_port))
-        };
-        let clean = m.wants_clean_urls();
         let any_active = m.entries.iter().any(Entry::is_active);
         let any_idle = m.entries.iter().any(|e| !e.is_active());
         // Adding leads only on an empty board; otherwise the selected
@@ -519,68 +505,22 @@ impl Board {
                 .child(label(text, 11.5, MUTED))
         };
 
+        // Values lose their start when too long: paths end in what matters.
+        let row = |name: &'static str, value: String| {
+            div().flex().items_center().child(cell_label(name)).child(
+                div().px_2p5().flex_1().min_w_0().child(
+                    mono(value, 12., TEXT).overflow_hidden().whitespace_nowrap().text_ellipsis_start(),
+                ),
+            )
+        };
+        let (lo, hi) = (process::AUTO_PORTS.start(), process::AUTO_PORTS.end());
         let title_block = div()
             .flex()
             .flex_col()
             .border_1()
             .border_color(hairline())
-            .child(
-                div()
-                    .id("tb-proxy")
-                    .flex()
-                    .items_center()
-                    .cursor_pointer()
-                    .hover(|el| el.bg(wash(0.05)))
-                    .tooltip(|window, cx| {
-                        gpui_kit::component::tooltip::Tooltip::new("Start or stop the portless proxy").build(window, cx)
-                    })
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.m.toggle_proxy();
-                        cx.notify();
-                    }))
-                    .child(cell_label("proxy"))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .px_2p5()
-                            .child(div().size(px(7.)).rounded_full().bg(c(dot)))
-                            .child(mono(proxy, 12., TEXT)),
-                    ),
-            )
-            .child(
-                div()
-                    .id("tb-urls")
-                    .flex()
-                    .items_center()
-                    .border_t_1()
-                    .border_color(hairline())
-                    .when(!clean, |el| {
-                        el.cursor_pointer()
-                            .hover(|el| el.bg(wash(0.05)))
-                            .tooltip(|window, cx| {
-                                gpui_kit::component::tooltip::Tooltip::new("Switch to https://name.localhost (port 443)")
-                                    .build(window, cx)
-                            })
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.m.use_clean_urls();
-                                this.m.info("URLs will drop the port. The next start sets up port 443 once.");
-                                cx.notify();
-                            }))
-                    })
-                    .child(cell_label("urls"))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .px_2p5()
-                            .flex_1()
-                            .child(mono(if clean { "clean · no port" } else { "with :1355" }, 12., TEXT))
-                            .when(!clean, |el| el.child(div().flex_1()).child(label("make clean", 11.5, INK))),
-                    ),
-            );
+            .child(row("ports", format!("auto · {lo}–{hi}")))
+            .child(row("config", display_path(m.config_path())).border_t_1().border_color(hairline()));
 
         sheet()
             .child(corner_label("MANAGE"))
@@ -646,20 +586,22 @@ impl Board {
         let id = e.id;
         let status = e.status();
         let live = status == Status::Running;
-        let url = self.m.expected_url(e);
+        let url = e.url();
         let confirming = self.confirm_remove == Some(id);
-        let (open_url, copy_url) = (url.clone(), url.clone());
+        let (open_url, copy_url) = (url.clone().unwrap_or_default(), url.clone().unwrap_or_default());
         let port = match (e.project.port, e.app_port.filter(|_| e.run.is_some())) {
             (Some(p), _) => format!("{p} fixed"),
             (None, Some(p)) => format!("{p} auto"),
             (None, None) => "auto".into(),
         };
-        let command =
-            if e.project.command.is_empty() { "package.json dev".to_string() } else { e.project.command.clone() };
-        let host = url.split("://").nth(1).unwrap_or(&url).to_string();
-        let route = match e.project.port.or(e.app_port.filter(|_| e.run.is_some())) {
-            Some(p) => format!("127.0.0.1:{p} → {host}"),
-            None => format!("port assigned on start → {host}"),
+        // An empty command shows what it resolves to.
+        let command = match e.project.command.trim() {
+            "" => stack::dev_script_command(&e.project.path).unwrap_or_else(|| "package.json dev".into()),
+            c => c.to_string(),
+        };
+        let route = match e.port() {
+            Some(p) => format!("PORT={p}"),
+            None => "PORT picked on start".into(),
         };
         let pid = e.run.as_ref().map(|r| r.pid().to_string()).unwrap_or_else(|| "—".into());
         let up = e.run.as_ref().map(|r| fmt_duration(r.started.elapsed())).unwrap_or_else(|| "—".into());
@@ -715,28 +657,30 @@ impl Board {
                     )
                     .child(label(status_text, 13., status_color(status)).flex_none())
                     .child(div().flex_1())
-                    .child(icon_button(
-                        "open",
-                        IconName::ExternalLink,
-                        c(INK),
-                        "Open in browser (O)",
-                        cx.listener(move |this, _, _, cx| {
-                            if let Some(e) = this.m.get(id) {
-                                cx.open_url(&this.m.expected_url(e));
-                            }
-                        }),
-                    ))
-                    .child(icon_button(
-                        "copy",
-                        IconName::Copy,
-                        c(INK),
-                        "Copy URL",
-                        cx.listener(move |this, _, _, cx| {
-                            cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
-                            this.m.info(format!("copied {copy_url}"));
-                            cx.notify();
-                        }),
-                    ))
+                    .when(url.is_some(), |el| {
+                        el.child(icon_button(
+                            "open",
+                            IconName::ExternalLink,
+                            c(INK),
+                            "Open in browser (O)",
+                            cx.listener(move |this, _, _, cx| {
+                                if let Some(url) = this.m.get(id).and_then(Entry::url) {
+                                    cx.open_url(&url);
+                                }
+                            }),
+                        ))
+                        .child(icon_button(
+                            "copy",
+                            IconName::Copy,
+                            c(INK),
+                            "Copy URL",
+                            cx.listener(move |this, _, _, cx| {
+                                cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
+                                this.m.info(format!("copied {copy_url}"));
+                                cx.notify();
+                            }),
+                        ))
+                    })
                     .child(icon_button(
                         "restart",
                         IconName::RotateCw,
@@ -790,7 +734,7 @@ impl Board {
                             .hover(|el| el.underline())
                             .on_click(move |_, _, cx| cx.open_url(&open_url))
                     })
-                    .child(url)
+                    .child(url.unwrap_or_else(|| "http://localhost:—".into()))
                     .when(live, |el| el.child(icon(IconName::ArrowUpRight, 15., c(INK)))),
             )
             .child(
@@ -899,8 +843,12 @@ impl Board {
     fn render_form(&self, form: &ProjectForm, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let title = if form.editing.is_some() { "edit project" } else { "new project" };
         let err = |field: Field| form.error.as_ref().filter(|(f, _)| *f == field).map(|(_, m)| m.clone());
-        let name_value = form.name.read(cx).value().to_string();
-        let preview = self.m.url_for(if name_value.trim().is_empty() { "name" } else { name_value.trim() });
+        let port_value = form.port.read(cx).value().trim().to_string();
+        let (lo, hi) = (process::AUTO_PORTS.start(), process::AUTO_PORTS.end());
+        let port_note = match port_value.parse::<u16>() {
+            Ok(p) if p > 0 => format!("http://localhost:{p}"),
+            _ => format!("auto: {lo}–{hi}"),
+        };
 
         let folder_section: AnyElement = match &form.folder {
             Some(path) => div()
@@ -1006,7 +954,9 @@ impl Board {
 
         let command_value = form.command.read(cx).value().trim().to_string();
         let command_note = form.folder.as_ref().map(|dir| match &form.recipe {
-            _ if command_value.is_empty() && stack::has_dev_script(dir) => "runs the package.json dev script".to_string(),
+            _ if command_value.is_empty() && stack::has_dev_script(dir) => {
+                format!("runs {}", stack::dev_script_command(dir).unwrap_or_default())
+            }
             Some(r) if r.command == command_value && r.reads_env => {
                 format!("detected {} · the server must listen on $PORT", r.name)
             }
@@ -1060,7 +1010,7 @@ impl Board {
                         .child(folder_section)
                         .when_some(err(Field::Folder), |el, e| el.child(label(e, 12., RED))),
                 )
-                .child(field("name", text_field(&form.name, window, cx).into_any_element(), Some((preview, INK)), err(Field::Name)))
+                .child(field("name", text_field(&form.name, window, cx).into_any_element(), None, err(Field::Name)))
                 .child(
                     div()
                         .flex()
@@ -1068,7 +1018,7 @@ impl Board {
                         .child(div().w(px(150.)).child(field(
                             "port",
                             text_field(&form.port, window, cx).into_any_element(),
-                            None,
+                            Some((port_note, INK)),
                             err(Field::Port),
                         )))
                         .child(div().flex_1().child(field(
@@ -1102,159 +1052,6 @@ impl Board {
         )
     }
 
-    fn render_setup(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let port = self.m.config.proxy_port;
-        let waiting = matches!(self.m.setup, Setup::Waiting(_));
-        let stray = self.m.stray_proxy_port();
-
-        let option = |id: &'static str,
-                      name: IconName,
-                      title: &'static str,
-                      body: String,
-                      recommended: bool,
-                      on_click: Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>| {
-            div()
-                .id(id)
-                .relative()
-                .flex()
-                .items_start()
-                .gap_3()
-                .p_4()
-                .cursor_pointer()
-                .hover(|el| el.bg(wash(0.05)))
-                .on_click(move |ev, window, cx| on_click(ev, window, cx))
-                .child(sketch::border(if recommended { c(INK) } else { line() }, 1.))
-                .child(icon(name, 18., c(if recommended { INK } else { MUTED })))
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .flex()
-                        .flex_col()
-                        .gap_0p5()
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap_2()
-                                .child(label(title, 14., TEXT).font_weight(FontWeight::SEMIBOLD))
-                                .when(recommended, |el| {
-                                    el.child(
-                                        mono("RECOMMENDED", 9.5, theme::ON_INK)
-                                            .font_weight(FontWeight::BOLD)
-                                            .px_1p5()
-                                            .bg(c(INK)),
-                                    )
-                                }),
-                        )
-                        .child(label(body, 12., MUTED)),
-                )
-        };
-
-        let content: AnyElement = if waiting {
-            div()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap_3()
-                        .child(icon(IconName::SquareTerminal, 22., c(INK)))
-                        .child(label("finish in the terminal window, it asks for your password", 13., TEXT)),
-                )
-                .child(label("blueprint starts your projects as soon as the proxy is up.", 12.5, MUTED))
-                .child(div().flex().justify_end().child(button(
-                    "cancel-setup",
-                    None,
-                    "cancel",
-                    Kind::Ghost,
-                    cx.listener(|this, _, _, cx| {
-                        this.m.cancel_setup();
-                        cx.notify();
-                    }),
-                )))
-                .into_any_element()
-        } else {
-            let fallback = crate::config::FALLBACK_PROXY_PORT;
-            let svc = cx.listener(|this, _, _, cx| {
-                this.m.run_setup(SetupKind::Service);
-                cx.notify();
-            });
-            let once = cx.listener(|this, _, _, cx| {
-                this.m.run_setup(SetupKind::Once);
-                cx.notify();
-            });
-            let fb = cx.listener(|this, _, _, cx| {
-                this.m.use_fallback_port();
-                cx.notify();
-            });
-            div()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .child(label(
-                    format!(
-                        "to serve https://name.localhost with no port, the portless proxy listens on port {port}. \
-                         that needs your password once.{}",
-                        stray.map(|p| format!(" the proxy on :{p} will be stopped first.")).unwrap_or_default()
-                    ),
-                    12.5,
-                    MUTED,
-                ).line_height(px(20.)))
-                .child(option(
-                    "setup-service",
-                    IconName::ShieldCheck,
-                    "install as a service",
-                    "opens a terminal for your password · starts on boot · trusts the https certificate".into(),
-                    true,
-                    Box::new(svc),
-                ))
-                .child(option(
-                    "setup-once",
-                    IconName::Power,
-                    "start once",
-                    "opens a terminal for your password · runs until you reboot".into(),
-                    false,
-                    Box::new(once),
-                ))
-                .child(option(
-                    "setup-fallback",
-                    IconName::Globe,
-                    "skip, use port 1355",
-                    format!("no password · urls end in :{fallback}"),
-                    false,
-                    Box::new(fb),
-                ))
-                .child(div().flex().justify_end().child(button(
-                    "cancel-setup",
-                    None,
-                    "cancel",
-                    Kind::Ghost,
-                    cx.listener(|this, _, _, cx| {
-                        this.m.cancel_setup();
-                        cx.notify();
-                    }),
-                )))
-                .into_any_element()
-        };
-
-        modal(
-            sheet()
-                .bg(c(theme::OVERLAY))
-                .w(px(580.))
-                .p_6()
-                .flex()
-                .flex_col()
-                .gap_3()
-                .child(label(if waiting { "waiting for the proxy" } else { "one-time setup" }, 12.5, MUTED))
-                .child(heading("clean urls need port 443", 20.))
-                .child(sketch::rule(line()))
-                .child(content),
-        )
-    }
-
     fn render_toast(&self) -> Option<impl IntoElement> {
         let (text, kind, _) = self.m.message.as_ref()?;
         let color = if *kind == MsgKind::Error { RED } else { INK };
@@ -1285,7 +1082,6 @@ impl Render for Board {
             window.focus(&self.focus, cx);
         }
         let form = self.form.as_ref().map(|f| self.render_form(f, window, cx).into_any_element());
-        let setup = (self.m.setup != Setup::None).then(|| self.render_setup(cx).into_any_element());
         div()
             .relative()
             .size_full()
@@ -1314,7 +1110,6 @@ impl Render for Board {
             )
             .children(self.render_toast())
             .children(form)
-            .children(setup)
     }
 }
 
@@ -1399,7 +1194,7 @@ fn log_line(raw: &str) -> AnyElement {
     if raw.starts_with("── ") {
         return div().text_color(c(INK)).child(raw.to_string()).into_any_element();
     }
-    if raw.starts_with("$ portless") {
+    if raw.starts_with("$ PORT=") {
         return div().text_color(c(FAINT)).child(raw.to_string()).into_any_element();
     }
     let styled = ansi::parse(raw);

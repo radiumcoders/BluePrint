@@ -1,6 +1,6 @@
 //! Desktop launchers start apps with a bare session PATH, missing whatever
 //! the user's shell profile adds (mise, cargo, bun, go, ...). Without it,
-//! `portless` and the dev servers' own tools aren't found.
+//! the dev servers' tools (npm, cargo, ...) aren't found.
 
 #[cfg(unix)]
 use std::io::Read;

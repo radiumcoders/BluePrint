@@ -1,8 +1,8 @@
-//! Working out how to start a project that isn't a plain package.json app.
+//! Working out how to start a project.
 //!
-//! portless hands every server its port in the `PORT` environment variable
-//! (and adds `--port` only for a few JS frameworks), so a recipe either uses a
-//! tool that reads `PORT` itself or passes `$PORT` on the command line.
+//! blueprint hands every server its port in the `PORT` environment variable,
+//! so a recipe either uses a tool that reads `PORT` itself or passes `$PORT`
+//! on the command line.
 
 use std::fs;
 use std::path::Path;
@@ -11,7 +11,8 @@ use std::path::Path;
 pub struct Recipe {
     /// What was detected, e.g. "Trunk" or "Django".
     pub name: &'static str,
-    /// Command to run; empty means `portless run` (the package.json dev script).
+    /// Command to run; empty means the package.json dev script (see
+    /// [`dev_script_command`]).
     pub command: String,
     /// The command doesn't pass a port itself, so the server must read `PORT`.
     pub reads_env: bool,
@@ -36,18 +37,65 @@ fn has(dir: &Path, file: &str) -> bool {
     dir.join(file).exists()
 }
 
-/// Whether package.json's `scripts` has an entry named `script`.
-fn has_script(pkg: &str, script: &str) -> bool {
-    pkg.find("\"scripts\"").is_some_and(|at| {
-        let rest = &pkg[at..];
-        let block = &rest[..rest.find('}').unwrap_or(rest.len())];
-        block.contains(&format!("\"{script}\""))
-    })
+/// The body of package.json's `scripts.<script>`, if there is one.
+fn script(pkg: &str, script: &str) -> Option<String> {
+    let json: serde_json::Value = serde_json::from_str(pkg).ok()?;
+    json.get("scripts")?.get(script)?.as_str().map(String::from)
 }
 
-/// True when `portless run` can start the folder on its own.
+fn has_script(pkg: &str, name: &str) -> bool {
+    script(pkg, name).is_some()
+}
+
+/// True when an empty command can run: there's a package.json dev script.
 pub fn has_dev_script(dir: &Path) -> bool {
-    has(dir, "portless.json") || has_script(&read(dir, "package.json"), "dev")
+    has_script(&read(dir, "package.json"), "dev")
+}
+
+/// The package manager a JS project uses, judged by its lockfile.
+fn package_manager(dir: &Path) -> &'static str {
+    if has(dir, "bun.lock") || has(dir, "bun.lockb") {
+        "bun"
+    } else if has(dir, "pnpm-lock.yaml") {
+        "pnpm"
+    } else if has(dir, "yarn.lock") {
+        "yarn"
+    } else {
+        "npm"
+    }
+}
+
+/// Flags for dev servers that ignore `PORT` (Vite would otherwise also
+/// wander to the next free port, away from the one blueprint checks).
+fn port_flags(script: &str) -> Option<&'static str> {
+    // Skip `NAME=value` and `cross-env NAME=value` prefixes to find the tool.
+    let tool = script
+        .split_whitespace()
+        .find(|w| !w.contains('=') && *w != "cross-env" && *w != "npx" && *w != "bunx")?;
+    let tool = tool.rsplit(['/', '\\']).next().unwrap_or(tool);
+    match tool {
+        "vite" => Some("--port $PORT --strictPort"),
+        "astro" | "ng" | "react-router" | "remix" | "expo" => Some("--port $PORT"),
+        _ => None,
+    }
+}
+
+/// The command that runs package.json's dev script with the project's
+/// package manager, passing `--port $PORT` to tools that need it.
+pub fn dev_script_command(dir: &Path) -> Option<String> {
+    let body = script(&read(dir, "package.json"), "dev")?;
+    let pm = package_manager(dir);
+    let run = match pm {
+        "npm" => "npm run dev".to_string(),
+        "bun" => "bun run dev".to_string(),
+        pm => format!("{pm} dev"),
+    };
+    Some(match port_flags(&body) {
+        // npm needs `--` before arguments meant for the script.
+        Some(flags) if pm == "npm" => format!("{run} -- {flags}"),
+        Some(flags) => format!("{run} {flags}"),
+        None => run,
+    })
 }
 
 /// The best guess at how to start the project in `dir`, if any.
@@ -71,14 +119,9 @@ fn node(dir: &Path) -> Option<Recipe> {
     if pkg.is_empty() || !has_script(&pkg, "start") {
         return None;
     }
-    let pm = if has(dir, "bun.lock") || has(dir, "bun.lockb") {
-        "bun run"
-    } else if has(dir, "pnpm-lock.yaml") {
-        "pnpm"
-    } else if has(dir, "yarn.lock") {
-        "yarn"
-    } else {
-        "npm"
+    let pm = match package_manager(dir) {
+        "bun" => "bun run",
+        pm => pm,
     };
     env_recipe("start script", format!("{pm} start"))
 }
@@ -219,6 +262,31 @@ mod tests {
         );
         // "dev" outside scripts doesn't count.
         assert_eq!(command(&[("package.json", r#"{"name":"dev"}"#)]), None);
+    }
+
+    #[test]
+    fn dev_scripts() {
+        let run = |files: &[(&str, &str)]| {
+            let dir = project(files);
+            let r = dev_script_command(&dir);
+            fs::remove_dir_all(dir).unwrap();
+            r
+        };
+        assert_eq!(run(&[("package.json", r#"{"scripts":{"dev":"next dev"}}"#)]).as_deref(), Some("npm run dev"));
+        assert_eq!(
+            run(&[("package.json", r#"{"scripts":{"dev":"vite"}}"#)]).as_deref(),
+            Some("npm run dev -- --port $PORT --strictPort")
+        );
+        assert_eq!(
+            run(&[("package.json", r#"{"scripts":{"dev":"NODE_ENV=dev astro dev"}}"#), ("pnpm-lock.yaml", "")])
+                .as_deref(),
+            Some("pnpm dev --port $PORT")
+        );
+        assert_eq!(
+            run(&[("package.json", r#"{"scripts":{"dev":"vite dev"}}"#), ("bun.lock", "")]).as_deref(),
+            Some("bun run dev --port $PORT --strictPort")
+        );
+        assert_eq!(run(&[("package.json", r#"{"scripts":{"build":"vite build"}}"#)]), None);
     }
 
     #[test]

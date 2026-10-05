@@ -4,16 +4,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-/// Port the portless proxy listens on. 443 gives clean `https://app.localhost`
-/// URLs but needs root once (`portless service install`).
-pub const DEFAULT_PROXY_PORT: u16 = 443;
-/// Unprivileged alternative; URLs then look like `https://app.localhost:1355`.
-pub const FALLBACK_PROXY_PORT: u16 = 1355;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    #[serde(default = "default_proxy_port")]
-    pub proxy_port: u16,
     /// Folder the project picker opens in.
     #[serde(default = "default_projects_root")]
     pub projects_root: PathBuf,
@@ -23,19 +15,15 @@ pub struct Config {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Project {
-    /// portless app name, e.g. `api.shop` -> `https://api.shop.localhost`.
+    /// Display name, e.g. `shop` or `api.shop`.
     pub name: String,
     pub path: PathBuf,
-    /// Fixed port for the dev server (`--app-port`). `None` lets portless pick one.
+    /// Fixed port for the dev server. `None` picks a free one on each start.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
-    /// Command to run. Empty means `portless run`, i.e. the package.json `dev` script.
+    /// Command to run. Empty means the package.json `dev` script.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub command: String,
-}
-
-fn default_proxy_port() -> u16 {
-    DEFAULT_PROXY_PORT
 }
 
 fn default_projects_root() -> PathBuf {
@@ -47,7 +35,6 @@ fn default_projects_root() -> PathBuf {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            proxy_port: default_proxy_port(),
             projects_root: default_projects_root(),
             projects: Vec::new(),
         }
@@ -115,8 +102,8 @@ pub fn display_path(p: &Path) -> String {
     p.display().to_string()
 }
 
-/// Turn arbitrary text into a valid portless name: lowercase letters, digits,
-/// `-` and `.` (dots make subdomains, e.g. `api.shop`).
+/// Turn arbitrary text into a valid project name: lowercase letters, digits,
+/// `-` and `.` (e.g. `api.shop`).
 pub fn slugify(s: &str) -> String {
     let s = s.rsplit('/').next().unwrap_or(s); // drop npm scope: @acme/web -> web
     let mut out = String::new();
@@ -212,7 +199,6 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("blueprint-test-{}", std::process::id()));
         let path = dir.join("config.toml");
         let cfg = Config {
-            proxy_port: 1400,
             projects_root: "/tmp".into(),
             projects: vec![
                 Project {
@@ -231,7 +217,9 @@ mod tests {
         };
         cfg.save(&path).unwrap();
         let back = Config::load(&path).unwrap();
-        assert_eq!(back.proxy_port, 1400);
+        // Configs written for portless still load; its proxy_port is ignored.
+        fs::write(&path, "proxy_port = 443\n").unwrap();
+        assert!(Config::load(&path).is_ok());
         assert_eq!(back.projects, cfg.projects);
         fs::remove_dir_all(dir).unwrap();
     }

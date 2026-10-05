@@ -9,9 +9,9 @@
 
 pub use imp::*;
 
-/// Rewrite a POSIX-style command for `cmd.exe`, which is what portless runs
-/// commands with on Windows: `$NAME` becomes `%NAME%`, and leading
-/// `NAME=value` assignments become `set "NAME=value" &&`.
+/// Rewrite a POSIX-style command for `cmd.exe`, the shell on Windows:
+/// `$NAME` becomes `%NAME%`, and leading `NAME=value` assignments become
+/// `set "NAME=value" &&`.
 #[cfg_attr(unix, allow(dead_code))] // Used on Windows; tested everywhere.
 pub fn posix_to_cmd(command: &str) -> String {
     let mut rest = command.trim();
@@ -70,10 +70,6 @@ mod imp {
 
     use crate::guardian;
 
-    pub fn command(program: &str) -> Command {
-        Command::new(program)
-    }
-
     /// Start the child in its own process group, so it can be stopped as a whole.
     pub fn isolate(cmd: &mut Command) {
         cmd.process_group(0);
@@ -111,18 +107,11 @@ mod imp {
         }
     }
 
-    /// Whether a process exists. One we may not signal (the proxy, when root
-    /// started it) still counts.
-    pub fn pid_alive(pid: u32) -> bool {
-        let pid = pid as libc::pid_t;
-        pid > 0
-            && (unsafe { libc::kill(pid, 0) } == 0
-                || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM))
-    }
-
-    /// portless args that run `command` through the shell.
-    pub fn shell_args(command: &str) -> Vec<String> {
-        vec!["sh".into(), "-c".into(), command.into()]
+    /// `command` run by `sh`, so pipes, `&&` and `$PORT` work.
+    pub fn shell(command: &str) -> Command {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", command]);
+        cmd
     }
 }
 
@@ -135,18 +124,16 @@ mod imp {
     use std::process::{Child, Command, Stdio};
     use std::sync::OnceLock;
 
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, STILL_ACTIVE};
+    use windows_sys::Win32::Foundation::HANDLE;
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation, SetInformationJobObject,
     };
-    use windows_sys::Win32::System::Threading::{
-        CREATE_NO_WINDOW, GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-    };
+    use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
 
     /// A command for `program`, found on PATH with any PATHEXT extension
-    /// (npm installs tools like portless as `.cmd` files, which
-    /// `Command::new` alone won't find), run without a console window.
+    /// (`Command::new` alone only looks for `.exe`), run without a console
+    /// window.
     pub fn command(program: &str) -> Command {
         let mut cmd = Command::new(resolve(program).unwrap_or_else(|| program.into()));
         cmd.creation_flags(CREATE_NO_WINDOW);
@@ -218,23 +205,14 @@ mod imp {
             .status();
     }
 
-    pub fn pid_alive(pid: u32) -> bool {
-        unsafe {
-            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-            if handle.is_null() {
-                return false;
-            }
-            let mut code = 0u32;
-            let ok = GetExitCodeProcess(handle, &mut code) != 0;
-            CloseHandle(handle);
-            ok && code == STILL_ACTIVE as u32
-        }
-    }
-
-    /// portless already runs commands with `cmd.exe /d /s /c`, so the
-    /// command goes through as one argument, rewritten for cmd.
-    pub fn shell_args(command: &str) -> Vec<String> {
-        vec![super::posix_to_cmd(command)]
+    /// `command` rewritten for and run by `cmd.exe`, which also finds the
+    /// `.cmd` shims npm installs. Passed raw: `/s` strips the outer quotes and
+    /// leaves the command exactly as written, which Rust's argument quoting
+    /// wouldn't.
+    pub fn shell(command: &str) -> Command {
+        let mut cmd = self::command("cmd");
+        cmd.raw_arg(format!("/d /s /c \"{}\"", super::posix_to_cmd(command)));
+        cmd
     }
 }
 
