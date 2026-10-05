@@ -557,19 +557,6 @@ impl Board {
                             .child(mono(if clean { "clean · no port" } else { "with :1355" }, 12., TEXT))
                             .when(!clean, |el| el.child(div().flex_1()).child(label("make clean", 11.5, INK))),
                     ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .border_t_1()
-                    .border_color(hairline())
-                    .child(cell_label("sheet"))
-                    .child(div().px_2p5().child(mono(
-                        format!("portboard v{} · 1/1", env!("CARGO_PKG_VERSION")),
-                        12.,
-                        MUTED,
-                    ))),
             );
 
         sheet()
@@ -1296,7 +1283,6 @@ impl Board {
     fn render_sheet_header(&self) -> impl IntoElement {
         let m = &self.m;
         let running = m.running_count();
-        let proxy = if m.proxy_ready() { format!("proxy :{}", m.effective_proxy_port()) } else { "proxy off".into() };
         div()
             .h(px(30.))
             .flex_none()
@@ -1307,7 +1293,7 @@ impl Board {
             .child(label("sheet 01 · portboard · dev servers", 11.5, MUTED))
             .child(label(
                 format!(
-                    "rev {} · {:02} projects · {} running · {proxy}",
+                    "rev {} · {:02} projects · {} running",
                     env!("CARGO_PKG_VERSION"),
                     m.entries.len(),
                     running
