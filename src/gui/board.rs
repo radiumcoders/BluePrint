@@ -23,6 +23,8 @@ const MAX_RENDERED_LINES: usize = 800;
 /// Space between sheets.
 const GUTTER: f32 = 18.;
 const SIDEBAR: f32 = 300.;
+/// Thickness of the rulers along the top and left edges.
+const RULER: f32 = 10.;
 
 
 struct ProjectForm {
@@ -1264,6 +1266,55 @@ impl Render for Board {
                 div()
                     .absolute()
                     .inset_0()
+                    .flex()
+                    .flex_col()
+                    .child(self.render_sheet_header())
+                    .child(div().h(px(RULER)).pl(px(RULER)).child(sketch::ruler(false, wash(0.5))))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_h_0()
+                            .flex()
+                            .child(div().w(px(RULER)).h_full().child(sketch::ruler(true, wash(0.5))))
+                            .child(self.render_sheets(cx)),
+                    ),
+            )
+            .children(self.render_toast())
+            .children(form)
+            .children(setup)
+    }
+}
+
+impl Board {
+    /// The strip above the rulers: what the drawing is, and its revision.
+    fn render_sheet_header(&self) -> impl IntoElement {
+        let m = &self.m;
+        let running = m.running_count();
+        let proxy = if m.proxy_ready() { format!("proxy :{}", m.effective_proxy_port()) } else { "proxy off".into() };
+        div()
+            .h(px(30.))
+            .flex_none()
+            .flex()
+            .items_center()
+            .justify_between()
+            .px(px(RULER + GUTTER))
+            .child(label("sheet 01 · portboard · dev servers", 11.5, MUTED))
+            .child(label(
+                format!(
+                    "rev {} · {:02} projects · {} running · {proxy}",
+                    env!("CARGO_PKG_VERSION"),
+                    m.entries.len(),
+                    running
+                ),
+                11.5,
+                MUTED,
+            ))
+    }
+
+    fn render_sheets(&self, cx: &mut Context<Self>) -> impl IntoElement {
+                div()
+                    .flex_1()
+                    .min_w_0()
                     .p(px(GUTTER))
                     .flex()
                     .gap(px(GUTTER))
@@ -1286,11 +1337,7 @@ impl Render for Board {
                             .gap(px(GUTTER))
                             .child(self.render_details(cx))
                             .child(self.render_logs(cx)),
-                    ),
-            )
-            .children(self.render_toast())
-            .children(form)
-            .children(setup)
+                    )
     }
 }
 

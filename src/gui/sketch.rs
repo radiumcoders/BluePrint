@@ -63,6 +63,43 @@ pub fn grid(step: f32, major: usize, minor_color: Rgba, major_color: Rgba) -> im
     .inset_0()
 }
 
+/// A drafting ruler: a baseline on its inner edge with ticks every 10px,
+/// longer every 50px and longest every 100px. Horizontal rulers sit above
+/// content (baseline at the bottom), vertical ones to its left (baseline on
+/// the right).
+pub fn ruler(vertical: bool, color: Rgba) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let (x0, y0) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
+            let (w, h) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+            let (length, depth) = if vertical { (h, w) } else { (w, h) };
+            let tick = |i: usize| match i {
+                i if i % 10 == 0 => depth * 0.9,
+                i if i % 5 == 0 => depth * 0.6,
+                _ => depth * 0.3,
+            };
+            if vertical {
+                vline(window, x0 + w - 1., y0, y0 + h, 1., color);
+            } else {
+                hline(window, x0, x0 + w, y0 + h - 1., 1., color);
+            }
+            let mut i = 0;
+            while i as f32 * 10. <= length {
+                let at = i as f32 * 10.;
+                let t = tick(i);
+                if vertical {
+                    hline(window, x0 + w - t, x0 + w, y0 + at, 1., color);
+                } else {
+                    vline(window, x0 + at, y0 + h - t, y0 + h, 1., color);
+                }
+                i += 1;
+            }
+        },
+    )
+    .size_full()
+}
+
 /// Segments of 45° hatching across a `w`×`h` box, `spacing` apart, clipped to it.
 fn hatch_segments(w: f32, h: f32, spacing: f32) -> Vec<((f32, f32), (f32, f32))> {
     // Lines satisfy x - y = k; walk k across the box.
