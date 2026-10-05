@@ -480,6 +480,10 @@ impl Board {
         };
         let clean = m.proxy_needs_root();
         let any_active = m.entries.iter().any(Entry::is_active);
+        let any_idle = m.entries.iter().any(|e| !e.is_active());
+        // Adding leads only on an empty board; otherwise the selected
+        // project's start button is the main action.
+        let add_kind = if m.entries.is_empty() { Kind::Primary } else { Kind::Plain };
 
         let cell_label = |text: &'static str| {
             div()
@@ -580,7 +584,7 @@ impl Board {
                     "add",
                     Some(IconName::Plus),
                     "add project",
-                    Kind::Primary,
+                    add_kind,
                     cx.listener(|this, _, window, cx| this.open_form(None, window, cx)),
                 )
                 .w_full(),
@@ -594,7 +598,7 @@ impl Board {
                             "start-all",
                             Some(IconName::Play),
                             "start all",
-                            Kind::Plain,
+                            if any_idle { Kind::Plain } else { Kind::Ghost },
                             cx.listener(|this, _, _, cx| {
                                 this.m.start_all();
                                 cx.notify();
