@@ -191,6 +191,7 @@ pub fn ring(seed: u64, color: Rgba, width: f32) -> impl IntoElement {
             }
         },
     )
+    .size_full()
 }
 
 #[cfg(test)]

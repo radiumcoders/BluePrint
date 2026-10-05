@@ -49,19 +49,6 @@ pub enum Status {
     Crashed,
 }
 
-impl Status {
-    pub fn label(self) -> &'static str {
-        match self {
-            Status::Stopped => "STOPPED",
-            Status::Waiting => "WAITING",
-            Status::Starting => "STARTING",
-            Status::Running => "RUNNING",
-            Status::Stopping => "STOPPING",
-            Status::Crashed => "CRASHED",
-        }
-    }
-}
-
 impl Entry {
     pub fn status(&self) -> Status {
         match &self.run {

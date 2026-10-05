@@ -1,5 +1,6 @@
-//! The main window: the board of projects, the console for the selected one,
-//! and the add/edit and proxy setup dialogs.
+//! The main window, laid out like a drawing sheet: projects and a title block
+//! on the left, details and logs on the right, plus the add/edit and proxy
+//! setup dialogs.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -9,10 +10,9 @@ use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
-use super::theme::{
-    self, AMBER, CONSOLE, FAINT, GREEN, INK, LINE, MONO, MUTED, PANEL, RAISED, RAISED_HI, RED, SANS, TEXT, alpha, c,
-};
-use super::widgets::{Kind, button, caps, icon, icon_button, lamp, status_color};
+use super::sketch::{self, seed};
+use super::theme::{self, BLUE, FAINT, HAND, MONO, MUTED, PAPER, RED, TEXT, alpha, c, wash};
+use super::widgets::{Kind, button, hand, icon, icon_button, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
@@ -20,13 +20,10 @@ use crate::manager::{Entry, Field, Id, Manager, MsgKind, Setup, SetupKind, Statu
 
 /// Rendering more lines than this makes long logs sluggish; older ones stay in memory.
 const MAX_RENDERED_LINES: usize = 800;
+/// Space between sheets.
+const GUTTER: f32 = 14.;
+const SIDEBAR: f32 = 300.;
 
-// Column widths shared by the board header and rows.
-const COL_STATUS: f32 = 120.;
-const COL_ADDRESS: f32 = 300.;
-const COL_PORT: f32 = 72.;
-const COL_UP: f32 = 64.;
-const COL_ACTION: f32 = 34.;
 
 struct ProjectForm {
     editing: Option<Id>,
@@ -361,299 +358,104 @@ impl Board {
     // -----------------------------------------------------------------------
     // Rendering
 
-    fn render_top_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let m = &self.m;
-        let (dot, label) = if !m.portless_ok {
-            (RED, "PORTLESS MISSING".to_string())
-        } else if m.proxy_ready() {
-            let port = m.effective_proxy_port();
-            (GREEN, format!("PROXY :{port}{}", if m.proxy.tls { " · HTTPS" } else { "" }))
-        } else if matches!(m.setup, Setup::Waiting(_)) {
-            (AMBER, "PROXY SETTING UP".to_string())
-        } else {
-            (FAINT, format!("PROXY OFF · :{}", m.config.proxy_port))
-        };
-        let any_active = m.entries.iter().any(Entry::is_active);
-        let tooltip = if m.proxy_ready() { "Stop the portless proxy" } else { "Start the portless proxy" };
-
-        div()
-            .flex()
-            .flex_none()
-            .items_center()
-            .gap_3()
-            .h(px(64.))
-            .px_5()
-            .border_b_1()
-            .border_color(c(LINE))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_3()
-                    .child(
-                        div()
-                            .size(px(30.))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded(px(6.))
-                            .bg(c(AMBER))
-                            .child(icon(IconName::Anchor, 16., c(theme::ON_AMBER))),
-                    )
-                    .child(
-                        div()
-                            .font_family(MONO)
-                            .font_weight(FontWeight::BOLD)
-                            .text_size(px(15.))
-                            .child("PORTBOARD"),
-                    ),
-            )
-            .child(div().flex_1())
-            .child(
-                div()
-                    .id("proxy-pill")
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .h(px(32.))
-                    .px_3()
-                    .rounded(px(6.))
-                    .border_1()
-                    .border_color(c(LINE))
-                    .font_family(MONO)
-                    .text_size(px(11.5))
-                    .text_color(c(MUTED))
-                    .cursor_pointer()
-                    .hover(|el| el.bg(c(RAISED)).text_color(c(TEXT)))
-                    .tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(tooltip).build(window, cx))
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.m.toggle_proxy();
-                        cx.notify();
-                    }))
-                    .child(div().size(px(7.)).rounded_full().bg(c(dot)))
-                    .child(label),
-            )
-            .when(!m.proxy_needs_root(), |el| {
-                el.child(button(
-                    "clean-urls",
-                    None,
-                    "Use clean URLs",
-                    Kind::Ghost,
-                    cx.listener(|this, _, _, cx| {
-                        this.m.use_clean_urls();
-                        this.m.info("URLs will drop the port. The next start sets up port 443 once.");
-                        cx.notify();
-                    }),
-                ))
-            })
-            .when(!m.entries.is_empty(), |el| {
-                el.child(if any_active {
-                    button(
-                        "stop-all",
-                        Some(IconName::Square),
-                        "Stop all",
-                        Kind::Ghost,
-                        cx.listener(|this, _, _, cx| {
-                            this.m.stop_all();
-                            cx.notify();
-                        }),
-                    )
-                } else {
-                    button(
-                        "start-all",
-                        Some(IconName::Play),
-                        "Start all",
-                        Kind::Ghost,
-                        cx.listener(|this, _, _, cx| {
-                            this.m.start_all();
-                            cx.notify();
-                        }),
-                    )
-                })
-            })
-            .child(button(
-                "add",
-                Some(IconName::Plus),
-                "Add project",
-                Kind::Primary,
-                cx.listener(|this, _, window, cx| this.open_form(None, window, cx)),
-            ))
-    }
-
-    fn render_board(&self, cx: &mut Context<Self>) -> AnyElement {
-        if self.m.entries.is_empty() {
-            return div()
+    fn render_projects(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let count = self.m.entries.len();
+        let body: AnyElement = if count == 0 {
+            div()
                 .flex_1()
                 .flex()
                 .flex_col()
                 .items_center()
                 .justify_center()
-                .gap_3()
-                .child(
-                    div()
-                        .font_family(MONO)
-                        .font_weight(FontWeight::BOLD)
-                        .text_size(px(22.))
-                        .text_color(c(AMBER))
-                        .child("NO DEPARTURES YET"),
-                )
-                .child(
-                    div()
-                        .text_size(px(14.))
-                        .text_color(c(MUTED))
-                        .child("Add a project folder and run it at https://name.localhost"),
-                )
-                .child(div().h(px(8.)))
-                .child(button(
-                    "add-empty",
-                    Some(IconName::Plus),
-                    "Add project",
-                    Kind::Primary,
-                    cx.listener(|this, _, window, cx| this.open_form(None, window, cx)),
-                ))
-                .into_any_element();
-        }
+                .gap_1()
+                .child(hand("no projects yet", 20., MUTED))
+                .child(hand("add one below", 15., FAINT))
+                .into_any_element()
+        } else {
+            let rows: Vec<AnyElement> =
+                self.m.entries.iter().map(|e| self.render_project_row(e, cx).into_any_element()).collect();
+            div()
+                .id("project-list")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .px_2()
+                .py_2()
+                .flex()
+                .flex_col()
+                .gap_0p5()
+                .children(rows)
+                .into_any_element()
+        };
 
-        let header = div()
-            .flex()
-            .flex_none()
-            .items_center()
-            .gap_4()
-            .h(px(34.))
-            .px_5()
-            .border_b_1()
-            .border_color(c(LINE))
-            .child(caps("STATUS").w(px(COL_STATUS)))
-            .child(caps("PROJECT").flex_1())
-            .child(caps("ADDRESS").w(px(COL_ADDRESS)))
-            .child(caps("PORT").w(px(COL_PORT)))
-            .child(caps("UP").w(px(COL_UP)))
-            .child(div().w(px(COL_ACTION)));
-
-        let rows: Vec<AnyElement> = self.m.entries.iter().map(|e| self.render_row(e, cx).into_any_element()).collect();
-
-        div()
+        sheet("projects")
+            .flex_1()
+            .min_h_0()
             .flex()
             .flex_col()
-            .flex_none()
-            .max_h(relative(0.5))
-            .child(header)
-            .child(div().id("board").flex().flex_col().min_h_0().overflow_y_scroll().children(rows))
-            .into_any_element()
+            .child(
+                div()
+                    .flex()
+                    .items_end()
+                    .justify_between()
+                    .px_5()
+                    .pt_4()
+                    .child(hand("projects", 26., BLUE))
+                    .child(mono(format!("{count:02}"), 12., FAINT).pb_1()),
+            )
+            .child(div().px_4().child(sketch::rule(seed("projects-rule"), alpha(BLUE, 0.55), 1.2)))
+            .child(body)
     }
 
-    fn render_row(&self, e: &Entry, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_project_row(&self, e: &Entry, cx: &mut Context<Self>) -> impl IntoElement {
         let id = e.id;
         let status = e.status();
         let selected = self.selected == Some(id);
-        let url = self.m.expected_url(e);
-        let live = status == Status::Running;
-        let uptime = e.run.as_ref().map(|r| fmt_duration(r.started.elapsed())).unwrap_or_default();
-        let (port, port_color) = match e.project.port {
-            Some(p) => (format!(":{p}"), TEXT),
-            None => match e.app_port.filter(|_| e.run.is_some()) {
-                Some(p) => (format!(":{p}"), MUTED),
-                None => ("auto".to_string(), FAINT),
-            },
+        let row_id = format!("row-{id}");
+        let detail = match &e.run {
+            Some(r) if status == Status::Running => format!("running · {}", fmt_duration(r.started.elapsed())),
+            _ => status_word(status).to_string(),
         };
-        let open_url = url.clone();
 
         div()
-            .id(SharedString::from(format!("row-{id}")))
+            .id(SharedString::from(row_id.clone()))
+            .relative()
             .flex()
             .flex_none()
             .items_center()
-            .gap_4()
-            .h(px(58.))
-            .relative()
-            .px_5()
-            .border_b_1()
-            .border_color(c(LINE))
+            .gap_3()
+            .h(px(50.))
+            .pl_2()
+            .pr_1()
+            .rounded(px(3.))
             .cursor_pointer()
             .map(|el| {
                 if selected {
-                    el.bg(c(RAISED))
-                        .child(div().absolute().left_0().top_0().bottom_0().w(px(3.)).bg(c(AMBER)))
+                    el.child(sketch::hatch(seed(&row_id), wash(0.16), 7.))
+                        .child(sketch::border(seed(&format!("{row_id}-sel")), alpha(BLUE, 0.7), 1.1))
                 } else {
-                    el.hover(|el| el.bg(c(PANEL)))
+                    el.hover(|el| el.bg(wash(0.05)))
                 }
             })
             .on_click(cx.listener(move |this, _, window, cx| {
                 window.focus(&this.focus, cx);
                 this.select(id, cx);
             }))
-            .child(
-                div()
-                    .w(px(COL_STATUS))
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .child(lamp(status))
-                    .child(
-                        div()
-                            .font_family(MONO)
-                            .font_weight(FontWeight::BOLD)
-                            .text_size(px(11.))
-                            .text_color(c(status_color(status)))
-                            .child(status.label()),
-                    ),
-            )
+            .child(lamp(status, seed(&row_id)))
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .gap_0p5()
                     .child(
-                        div()
-                            .font_family(MONO)
-                            .font_weight(FontWeight::BOLD)
-                            .text_size(px(14.))
-                            .truncate()
-                            .child(e.project.name.clone()),
+                        mono(e.project.name.clone(), 14., if selected { BLUE } else { TEXT })
+                            .font_weight(FontWeight::MEDIUM)
+                            .truncate(),
                     )
-                    .child(
-                        div()
-                            .text_size(px(12.))
-                            .text_color(c(MUTED))
-                            .truncate()
-                            .child(display_path(&e.project.path)),
-                    ),
+                    .child(hand(detail, 13., if status == Status::Crashed { RED } else { MUTED }).truncate()),
             )
-            .child(
-                div()
-                    .id(SharedString::from(format!("url-{id}")))
-                    .w(px(COL_ADDRESS))
-                    .font_family(MONO)
-                    .text_size(px(12.5))
-                    .truncate()
-                    .text_color(c(if live { AMBER } else { FAINT }))
-                    .when(live, |el| {
-                        el.hover(|el| el.underline()).on_click(move |_, _, cx| {
-                            cx.open_url(&open_url);
-                            cx.stop_propagation();
-                        })
-                    })
-                    .child(url),
-            )
-            .child(
-                div()
-                    .w(px(COL_PORT))
-                    .font_family(MONO)
-                    .text_size(px(12.5))
-                    .text_color(c(port_color))
-                    .child(port),
-            )
-            .child(
-                div()
-                    .w(px(COL_UP))
-                    .font_family(MONO)
-                    .text_size(px(12.))
-                    .text_color(c(MUTED))
-                    .child(uptime),
-            )
-            .child(div().w(px(COL_ACTION)).child(if e.is_active() {
+            .child(if e.is_active() {
                 icon_button(
                     SharedString::from(format!("stop-{id}")),
                     IconName::Square,
@@ -669,7 +471,7 @@ impl Board {
                 icon_button(
                     SharedString::from(format!("start-{id}")),
                     IconName::Play,
-                    c(AMBER),
+                    c(BLUE),
                     "Start (Enter)",
                     cx.listener(move |this, _, _, cx| {
                         this.m.start(id);
@@ -677,216 +479,435 @@ impl Board {
                         cx.stop_propagation();
                     }),
                 )
-            }))
+            })
     }
 
-    fn render_console(&self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(e) = self.selected.and_then(|id| self.m.get(id)) else {
-            return div().flex_1().into_any_element();
+    /// The "add project / manage" box, drawn as a drawing's title block.
+    fn render_manage(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let m = &self.m;
+        let (dot, proxy) = if !m.portless_ok {
+            (RED, "portless missing".to_string())
+        } else if m.proxy_ready() {
+            let scheme = if m.proxy.tls { "https" } else { "http" };
+            (theme::GREEN, format!("on · {scheme} :{}", m.effective_proxy_port()))
+        } else if matches!(m.setup, Setup::Waiting(_)) {
+            (theme::AMBER, "setting up…".to_string())
+        } else {
+            (FAINT, format!("off · :{}", m.config.proxy_port))
         };
-        let id = e.id;
-        let url = self.m.expected_url(e);
-        let live = e.status() == Status::Running;
-        let confirming = self.confirm_remove == Some(id);
-        let (open_url, copy_url) = (url.clone(), url.clone());
+        let clean = m.proxy_needs_root();
+        let any_active = m.entries.iter().any(Entry::is_active);
+        let line = alpha(BLUE, 0.3);
 
-        let header = div()
+        let cell_label = |text: &'static str| {
+            div()
+                .w(px(72.))
+                .flex_none()
+                .px_2p5()
+                .py_1p5()
+                .border_r_1()
+                .border_color(line)
+                .child(hand(text, 13., MUTED))
+        };
+
+        let title_block = div()
             .flex()
-            .flex_none()
-            .items_center()
-            .gap_3()
-            .h(px(48.))
-            .px_5()
-            .bg(c(PANEL))
-            .border_b_1()
-            .border_color(c(LINE))
-            .child(caps("CONSOLE"))
+            .flex_col()
+            .border_1()
+            .border_color(line)
             .child(
                 div()
-                    .font_family(MONO)
-                    .font_weight(FontWeight::BOLD)
-                    .text_size(px(13.))
-                    .child(e.project.name.clone()),
+                    .id("tb-proxy")
+                    .flex()
+                    .items_center()
+                    .cursor_pointer()
+                    .hover(|el| el.bg(wash(0.05)))
+                    .tooltip(|window, cx| {
+                        gpui_kit::component::tooltip::Tooltip::new("Start or stop the portless proxy").build(window, cx)
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.m.toggle_proxy();
+                        cx.notify();
+                    }))
+                    .child(cell_label("proxy"))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .px_2p5()
+                            .child(div().size(px(7.)).rounded_full().bg(c(dot)))
+                            .child(mono(proxy, 12., TEXT)),
+                    ),
             )
             .child(
                 div()
-                    .id("console-url")
+                    .id("tb-urls")
+                    .flex()
+                    .items_center()
+                    .border_t_1()
+                    .border_color(line)
+                    .when(!clean, |el| {
+                        el.cursor_pointer()
+                            .hover(|el| el.bg(wash(0.05)))
+                            .tooltip(|window, cx| {
+                                gpui_kit::component::tooltip::Tooltip::new("Switch to https://name.localhost (port 443)")
+                                    .build(window, cx)
+                            })
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.m.use_clean_urls();
+                                this.m.info("URLs will drop the port. The next start sets up port 443 once.");
+                                cx.notify();
+                            }))
+                    })
+                    .child(cell_label("urls"))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .px_2p5()
+                            .flex_1()
+                            .child(mono(if clean { "clean · no port" } else { "with :1355" }, 12., TEXT))
+                            .when(!clean, |el| el.child(div().flex_1()).child(hand("make clean", 13., BLUE))),
+                    ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .border_t_1()
+                    .border_color(line)
+                    .child(cell_label("sheet"))
+                    .child(div().px_2p5().child(mono(
+                        format!("portboard v{} · 1/1", env!("CARGO_PKG_VERSION")),
+                        12.,
+                        MUTED,
+                    ))),
+            );
+
+        sheet("manage")
+            .flex_none()
+            .p_4()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .child(
+                button(
+                    "add",
+                    Some(IconName::Plus),
+                    "add project",
+                    Kind::Primary,
+                    cx.listener(|this, _, window, cx| this.open_form(None, window, cx)),
+                )
+                .w_full(),
+            )
+            .child(
+                div()
+                    .flex()
+                    .gap_2()
+                    .child(
+                        button(
+                            "start-all",
+                            Some(IconName::Play),
+                            "start all",
+                            Kind::Plain,
+                            cx.listener(|this, _, _, cx| {
+                                this.m.start_all();
+                                cx.notify();
+                            }),
+                        )
+                        .flex_1(),
+                    )
+                    .child(
+                        button(
+                            "stop-all",
+                            Some(IconName::Square),
+                            "stop all",
+                            if any_active { Kind::Plain } else { Kind::Ghost },
+                            cx.listener(|this, _, _, cx| {
+                                this.m.stop_all();
+                                cx.notify();
+                            }),
+                        )
+                        .flex_1(),
+                    ),
+            )
+            .child(title_block)
+    }
+
+    fn render_details(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let Some(e) = self.selected.and_then(|id| self.m.get(id)) else {
+            return sheet("details")
+                .flex_none()
+                .h(px(190.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(hand("pick a project to see its details", 18., FAINT));
+        };
+        let id = e.id;
+        let status = e.status();
+        let live = status == Status::Running;
+        let url = self.m.expected_url(e);
+        let confirming = self.confirm_remove == Some(id);
+        let (open_url, copy_url) = (url.clone(), url.clone());
+        let port = match (e.project.port, e.app_port.filter(|_| e.run.is_some())) {
+            (Some(p), _) => format!("{p} fixed"),
+            (None, Some(p)) => format!("{p} auto"),
+            (None, None) => "auto".into(),
+        };
+        let command =
+            if e.project.command.is_empty() { "package.json dev".to_string() } else { e.project.command.clone() };
+        let pid = e.run.as_ref().map(|r| r.pid().to_string()).unwrap_or_else(|| "—".into());
+        let up = e.run.as_ref().map(|r| fmt_duration(r.started.elapsed())).unwrap_or_else(|| "—".into());
+        let mut status_text = status_word(status).to_string();
+        if let Some(code) = e.last_exit.filter(|c| *c != 0 && e.run.is_none()) {
+            status_text = format!("{status_text} · exit {code}");
+        }
+
+        let toggle = if e.is_active() {
+            button(
+                "toggle",
+                Some(IconName::Square),
+                "stop",
+                Kind::Danger,
+                cx.listener(move |this, _, _, cx| {
+                    this.m.stop(id);
+                    cx.notify();
+                }),
+            )
+        } else {
+            button(
+                "toggle",
+                Some(IconName::Play),
+                "start",
+                Kind::Primary,
+                cx.listener(move |this, _, _, cx| {
+                    this.m.start(id);
+                    cx.notify();
+                }),
+            )
+        };
+
+        sheet("details")
+            .flex_none()
+            .px_6()
+            .pt_5()
+            .pb_5()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .child(lamp(status, seed("details-lamp")))
+                    .child(
+                        mono(e.project.name.clone(), 24., TEXT)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .min_w_0()
+                            .truncate(),
+                    )
+                    .child(hand(status_text, 17., status_color(status)).flex_none())
+                    .child(div().flex_1())
+                    .child(icon_button(
+                        "open",
+                        IconName::ExternalLink,
+                        c(BLUE),
+                        "Open in browser (O)",
+                        cx.listener(move |this, _, _, cx| {
+                            if let Some(e) = this.m.get(id) {
+                                cx.open_url(&this.m.expected_url(e));
+                            }
+                        }),
+                    ))
+                    .child(icon_button(
+                        "copy",
+                        IconName::Copy,
+                        c(BLUE),
+                        "Copy URL",
+                        cx.listener(move |this, _, _, cx| {
+                            cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
+                            this.m.info(format!("copied {copy_url}"));
+                            cx.notify();
+                        }),
+                    ))
+                    .child(icon_button(
+                        "restart",
+                        IconName::RotateCw,
+                        c(BLUE),
+                        "Restart (R)",
+                        cx.listener(move |this, _, _, cx| {
+                            this.m.restart(id);
+                            cx.notify();
+                        }),
+                    ))
+                    .child(icon_button(
+                        "edit",
+                        IconName::Pencil,
+                        c(BLUE),
+                        "Edit (E)",
+                        cx.listener(move |this, _, window, cx| this.open_form(Some(id), window, cx)),
+                    ))
+                    .child(if confirming {
+                        button(
+                            "remove-confirm",
+                            Some(IconName::Trash),
+                            "remove?",
+                            Kind::Danger,
+                            cx.listener(move |this, _, _, cx| this.remove(id, cx)),
+                        )
+                        .into_any_element()
+                    } else {
+                        icon_button(
+                            "remove",
+                            IconName::Trash,
+                            c(MUTED),
+                            "Remove (Delete)",
+                            cx.listener(move |this, _, _, cx| this.remove(id, cx)),
+                        )
+                        .into_any_element()
+                    })
+                    .child(div().w(px(6.)))
+                    .child(toggle),
+            )
+            .child(
+                div()
+                    .id("details-url")
+                    .flex()
+                    .items_center()
+                    .gap_1p5()
                     .font_family(MONO)
-                    .text_size(px(12.))
-                    .text_color(c(if live { AMBER } else { FAINT }))
-                    .truncate()
-                    .min_w_0()
+                    .text_size(px(15.))
+                    .text_color(c(if live { BLUE } else { FAINT }))
                     .when(live, |el| {
                         el.cursor_pointer()
                             .hover(|el| el.underline())
                             .on_click(move |_, _, cx| cx.open_url(&open_url))
                     })
-                    .child(url),
+                    .child(url)
+                    .when(live, |el| el.child(icon(IconName::ArrowUpRight, 15., c(BLUE)))),
             )
+            .child(sketch::rule(seed("details-rule"), alpha(BLUE, 0.4), 1.1))
+            .child(
+                div()
+                    .flex()
+                    .gap_8()
+                    .child(spec_tail("folder", display_path(&e.project.path), TEXT).flex_1())
+                    .child(spec("port", port, TEXT).w(px(120.)))
+                    .child(spec("command", command, if e.project.command.is_empty() { MUTED } else { TEXT }).w(px(200.)))
+                    .child(spec("pid", pid, TEXT).w(px(80.)))
+                    .child(spec("up", up, TEXT).w(px(64.))),
+            )
+    }
+
+    fn render_logs(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let entry = self.selected.and_then(|id| self.m.get(id));
+        let header = div()
+            .flex()
+            .items_center()
+            .gap_3()
+            .px_5()
+            .pt_3()
+            .child(hand("logs", 24., BLUE))
+            .children(entry.map(|e| mono(e.project.name.clone(), 12., FAINT).pt_1()))
             .child(div().flex_1())
-            .child(icon_button(
-                "open",
-                IconName::ExternalLink,
-                c(MUTED),
-                "Open in browser (O)",
-                cx.listener(move |this, _, _, cx| {
-                    if let Some(e) = this.m.get(id) {
-                        cx.open_url(&this.m.expected_url(e));
-                    }
-                }),
-            ))
-            .child(icon_button(
-                "copy",
-                IconName::Copy,
-                c(MUTED),
-                "Copy URL",
-                cx.listener(move |this, _, _, cx| {
-                    cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
-                    this.m.info(format!("Copied {copy_url}"));
-                    cx.notify();
-                }),
-            ))
-            .child(icon_button(
-                "restart",
-                IconName::RotateCw,
-                c(MUTED),
-                "Restart (R)",
-                cx.listener(move |this, _, _, cx| {
-                    this.m.restart(id);
-                    cx.notify();
-                }),
-            ))
-            .child(icon_button(
-                "edit",
-                IconName::Pencil,
-                c(MUTED),
-                "Edit (E)",
-                cx.listener(move |this, _, window, cx| this.open_form(Some(id), window, cx)),
-            ))
-            .child(icon_button(
-                "clear",
-                IconName::Eraser,
-                c(MUTED),
-                "Clear console",
-                cx.listener(move |this, _, _, cx| {
-                    if let Some(i) = this.m.index(id) {
-                        this.m.entries[i].clear_logs();
-                    }
-                    cx.notify();
-                }),
-            ))
-            .child(if confirming {
-                button(
-                    "remove-confirm",
-                    Some(IconName::Trash),
-                    "Remove?",
-                    Kind::Danger,
-                    cx.listener(move |this, _, _, cx| this.remove(id, cx)),
-                )
-                .into_any_element()
-            } else {
-                icon_button(
-                    "remove",
-                    IconName::Trash,
+            .when(!self.follow && entry.is_some_and(|e| !e.logs.is_empty()), |el| {
+                el.child(button(
+                    "jump",
+                    Some(IconName::ArrowDown),
+                    "latest",
+                    Kind::Plain,
+                    cx.listener(|this, _, _, cx| {
+                        this.follow = true;
+                        this.console_scroll.scroll_to_bottom();
+                        cx.notify();
+                    }),
+                ))
+            })
+            .when(entry.is_some(), |el| {
+                el.child(icon_button(
+                    "clear",
+                    IconName::Eraser,
                     c(MUTED),
-                    "Remove (Delete)",
-                    cx.listener(move |this, _, _, cx| this.remove(id, cx)),
-                )
-                .into_any_element()
+                    "Clear logs",
+                    cx.listener(|this, _, _, cx| {
+                        if let Some(i) = this.selected.and_then(|id| this.m.index(id)) {
+                            this.m.entries[i].clear_logs();
+                        }
+                        cx.notify();
+                    }),
+                ))
             });
 
-        let skip = e.logs.len().saturating_sub(MAX_RENDERED_LINES);
-        let lines: Vec<AnyElement> = e.logs.iter().skip(skip).map(|l| log_line(l)).collect();
-        let body = if lines.is_empty() {
-            let hint = if e.run.is_some() { "Waiting for output…" } else { "Not running. Press start to launch it." };
-            div()
-                .flex_1()
-                .p_5()
-                .font_family(MONO)
-                .text_size(px(12.5))
-                .text_color(c(FAINT))
-                .child(hint)
-                .into_any_element()
-        } else {
-            div()
-                .id("console")
-                .flex_1()
-                .min_h_0()
-                .overflow_y_scroll()
-                .track_scroll(&self.console_scroll)
-                .px_5()
-                .py_3()
-                .font_family(MONO)
-                .text_size(px(12.5))
-                .line_height(px(19.))
-                .text_color(c(0xd8d4ca))
-                .children(lines)
-                .into_any_element()
+        let body: AnyElement = match entry {
+            Some(e) if !e.logs.is_empty() => {
+                let skip = e.logs.len().saturating_sub(MAX_RENDERED_LINES);
+                div()
+                    .id("logs")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.console_scroll)
+                    .px_5()
+                    .py_2()
+                    .font_family(MONO)
+                    .text_size(px(12.5))
+                    .line_height(px(19.))
+                    .text_color(c(TEXT))
+                    .children(e.logs.iter().skip(skip).map(|l| log_line(l)))
+                    .into_any_element()
+            }
+            Some(e) => {
+                let hint = if e.run.is_some() { "waiting for output…" } else { "not running · press start" };
+                div().flex_1().px_5().py_3().child(hand(hint, 17., FAINT)).into_any_element()
+            }
+            None => div().flex_1().into_any_element(),
         };
 
-        let jump = (!self.follow && !e.logs.is_empty()).then(|| {
-            div().absolute().bottom_4().right_5().child(button(
-                "jump",
-                Some(IconName::ArrowDown),
-                "Latest",
-                Kind::Plain,
-                cx.listener(|this, _, _, cx| {
-                    this.follow = true;
-                    this.console_scroll.scroll_to_bottom();
-                    cx.notify();
-                }),
-            ))
-        });
-
-        div()
-            .relative()
+        sheet("logs")
             .flex_1()
             .min_h_0()
             .flex()
             .flex_col()
-            .bg(c(CONSOLE))
-            .border_t_1()
-            .border_color(c(LINE))
             .child(header)
+            .child(div().px_4().child(sketch::rule(seed("logs-rule"), alpha(BLUE, 0.4), 1.1)))
             .child(body)
-            .children(jump)
-            .into_any_element()
     }
 
     fn render_form(&self, form: &ProjectForm, cx: &mut Context<Self>) -> impl IntoElement {
-        let title = if form.editing.is_some() { "Edit project" } else { "New project" };
+        let title = if form.editing.is_some() { "edit project" } else { "new project" };
         let err = |field: Field| form.error.as_ref().filter(|(f, _)| *f == field).map(|(_, m)| m.clone());
         let name_value = form.name.read(cx).value().to_string();
-        let preview = if name_value.trim().is_empty() {
-            self.m.url_for("name")
-        } else {
-            self.m.url_for(name_value.trim())
-        };
+        let preview = self.m.url_for(if name_value.trim().is_empty() { "name" } else { name_value.trim() });
+        let line = alpha(BLUE, 0.3);
 
         let folder_section: AnyElement = match &form.folder {
             Some(path) => div()
                 .flex()
                 .items_center()
                 .gap_3()
-                .h(px(44.))
+                .h(px(42.))
                 .px_3()
-                .rounded(px(6.))
-                .bg(c(RAISED))
-                .child(icon(IconName::FolderOpen, 16., c(AMBER)))
+                .border_1()
+                .border_color(line)
+                .bg(wash(0.04))
+                .child(icon(IconName::FolderOpen, 16., c(BLUE)))
                 .child(
-                    div()
+                    mono(display_path(path), 12.5, TEXT)
                         .flex_1()
                         .min_w_0()
-                        .font_family(MONO)
-                        .text_size(px(12.5))
-                        .truncate()
-                        .child(display_path(path)),
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .text_ellipsis_start(),
                 )
                 .children(folders::tags_for(path).into_iter().map(tag))
                 .child(button(
                     "change-folder",
                     None,
-                    "Change",
+                    "change",
                     Kind::Ghost,
                     cx.listener(|this, _, window, cx| {
                         if let Some(f) = &mut this.form {
@@ -900,10 +921,10 @@ impl Board {
                 .into_any_element(),
             None => {
                 let query = form.filter.read(cx).value().to_string();
-                let matches: Vec<&Folder> =
-                    form.folders.iter().filter(|f| folders::fuzzy(query.trim(), &f.name)).collect();
-                let rows: Vec<AnyElement> = matches
+                let rows: Vec<AnyElement> = form
+                    .folders
                     .iter()
+                    .filter(|f| folders::fuzzy(query.trim(), &f.name))
                     .enumerate()
                     .map(|(ix, f)| {
                         let path = f.path.clone();
@@ -912,14 +933,13 @@ impl Board {
                             .flex()
                             .items_center()
                             .gap_2p5()
-                            .h(px(34.))
+                            .h(px(32.))
                             .px_3()
-                            .rounded(px(5.))
                             .cursor_pointer()
-                            .hover(|el| el.bg(c(RAISED_HI)))
+                            .hover(|el| el.bg(wash(0.07)))
                             .on_click(cx.listener(move |this, _, window, cx| this.pick_folder(path.clone(), window, cx)))
-                            .child(icon(IconName::Folder, 14., c(MUTED)))
-                            .child(div().flex_1().font_family(MONO).text_size(px(12.5)).truncate().child(f.name.clone()))
+                            .child(icon(IconName::Folder, 14., c(BLUE)))
+                            .child(mono(f.name.clone(), 12.5, TEXT).flex_1().truncate())
                             .children(f.tags.iter().copied().map(tag))
                             .into_any_element()
                     })
@@ -937,7 +957,7 @@ impl Board {
                             .child(button(
                                 "browse",
                                 Some(IconName::FolderSearch),
-                                "Browse…",
+                                "browse…",
                                 Kind::Plain,
                                 cx.listener(|this, _, window, cx| this.browse_folder(window, cx)),
                             )),
@@ -945,25 +965,21 @@ impl Board {
                     .child(
                         div()
                             .id("folder-list")
-                            .h(px(200.))
+                            .h(px(196.))
                             .overflow_y_scroll()
-                            .p_1()
-                            .rounded(px(6.))
-                            .bg(c(INK))
+                            .py_1()
                             .border_1()
-                            .border_color(c(LINE))
+                            .border_color(line)
                             .children(rows)
                             .when(empty, |el| {
-                                el.child(
-                                    div()
-                                        .p_3()
-                                        .text_size(px(12.5))
-                                        .text_color(c(FAINT))
-                                        .child(format!(
-                                            "No folders match in {}. Use Browse… to pick any folder.",
-                                            display_path(&self.m.config.projects_root)
-                                        )),
-                                )
+                                el.child(div().p_3().child(hand(
+                                    format!(
+                                        "nothing matches in {} · use browse… for any folder",
+                                        display_path(&self.m.config.projects_root)
+                                    ),
+                                    14.,
+                                    FAINT,
+                                )))
                             }),
                     )
                     .into_any_element()
@@ -974,116 +990,86 @@ impl Board {
             div()
                 .flex()
                 .flex_col()
-                .gap_1p5()
-                .child(caps(label))
+                .gap_1()
+                .child(hand(label, 15., MUTED))
                 .child(input)
-                .when_some(error.or(note.clone()).filter(|_| true), |el, text| {
-                    let is_error = note.as_deref() != Some(text.as_str());
-                    el.child(
-                        div()
-                            .font_family(if is_error { SANS } else { MONO })
-                            .text_size(px(12.))
-                            .text_color(c(if is_error { RED } else { AMBER }))
-                            .child(text),
-                    )
+                .map(|el| match (error, note) {
+                    (Some(e), _) => el.child(hand(e, 14., RED)),
+                    (None, Some(n)) => el.child(mono(n, 12., BLUE)),
+                    (None, None) => el,
                 })
         };
 
-        div()
-            .absolute()
-            .inset_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .bg(alpha(0x000000, 0.62))
-            .occlude()
-            .child(
-                div()
-                    .w(px(640.))
-                    .flex()
-                    .flex_col()
-                    .gap_5()
-                    .p_6()
-                    .rounded(px(10.))
-                    .bg(c(PANEL))
-                    .border_1()
-                    .border_color(c(LINE))
-                    .shadow_lg()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .child(
-                                div()
-                                    .flex_1()
-                                    .font_family(SANS)
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_size(px(20.))
-                                    .child(title),
-                            )
-                            .child(icon_button(
-                                "close-form",
-                                IconName::X,
-                                c(MUTED),
-                                "Cancel",
-                                cx.listener(|this, _, window, cx| this.close_form(window, cx)),
-                            )),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1p5()
-                            .child(caps("FOLDER"))
-                            .child(folder_section)
-                            .when_some(err(Field::Folder), |el, e| {
-                                el.child(div().text_size(px(12.)).text_color(c(RED)).child(e))
-                            }),
-                    )
-                    .child(field(
-                        "NAME",
-                        Input::new(&form.name).into_any_element(),
-                        Some(preview),
-                        err(Field::Name),
-                    ))
-                    .child(
-                        div()
-                            .flex()
-                            .gap_4()
-                            .child(div().w(px(150.)).child(field(
-                                "PORT",
-                                Input::new(&form.port).into_any_element(),
-                                None,
-                                err(Field::Port),
-                            )))
-                            .child(div().flex_1().child(field(
-                                "COMMAND",
-                                Input::new(&form.command).into_any_element(),
-                                None,
-                                err(Field::Command),
-                            ))),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .justify_end()
-                            .gap_2()
-                            .child(button(
-                                "cancel",
-                                None,
-                                "Cancel",
-                                Kind::Ghost,
-                                cx.listener(|this, _, window, cx| this.close_form(window, cx)),
-                            ))
-                            .child(button(
-                                "save",
-                                Some(IconName::Check),
-                                if form.editing.is_some() { "Save" } else { "Add project" },
-                                Kind::Primary,
-                                cx.listener(|this, _, window, cx| this.save_form(window, cx)),
-                            )),
-                    ),
-            )
+        modal(
+            sheet("form")
+                .w(px(660.))
+                .p_6()
+                .flex()
+                .flex_col()
+                .gap_4()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .child(hand(title, 28., BLUE).flex_1())
+                        .child(icon_button(
+                            "close-form",
+                            IconName::X,
+                            c(MUTED),
+                            "Cancel (Esc)",
+                            cx.listener(|this, _, window, cx| this.close_form(window, cx)),
+                        )),
+                )
+                .child(sketch::rule(seed("form-rule"), alpha(BLUE, 0.45), 1.1))
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .child(hand("folder", 15., MUTED))
+                        .child(folder_section)
+                        .when_some(err(Field::Folder), |el, e| el.child(hand(e, 14., RED))),
+                )
+                .child(field("name", Input::new(&form.name).into_any_element(), Some(preview), err(Field::Name)))
+                .child(
+                    div()
+                        .flex()
+                        .gap_4()
+                        .child(div().w(px(150.)).child(field(
+                            "port",
+                            Input::new(&form.port).into_any_element(),
+                            None,
+                            err(Field::Port),
+                        )))
+                        .child(div().flex_1().child(field(
+                            "command",
+                            Input::new(&form.command).into_any_element(),
+                            None,
+                            err(Field::Command),
+                        ))),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .justify_end()
+                        .gap_2()
+                        .pt_1()
+                        .child(button(
+                            "cancel",
+                            None,
+                            "cancel",
+                            Kind::Ghost,
+                            cx.listener(|this, _, window, cx| this.close_form(window, cx)),
+                        ))
+                        .child(button(
+                            "save",
+                            Some(IconName::Check),
+                            if form.editing.is_some() { "save" } else { "add project" },
+                            Kind::Primary,
+                            cx.listener(|this, _, window, cx| this.save_form(window, cx)),
+                        )),
+                ),
+        )
     }
 
     fn render_setup(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -1099,44 +1085,37 @@ impl Board {
                       on_click: Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>| {
             div()
                 .id(id)
+                .relative()
                 .flex()
                 .items_start()
                 .gap_3()
                 .p_4()
-                .rounded(px(8.))
-                .border_1()
-                .border_color(c(if recommended { AMBER } else { LINE }))
-                .when(recommended, |el| el.bg(alpha(AMBER, 0.06)))
                 .cursor_pointer()
-                .hover(|el| el.bg(c(RAISED)))
+                .hover(|el| el.bg(wash(0.05)))
                 .on_click(move |ev, window, cx| on_click(ev, window, cx))
-                .child(icon(name, 18., c(if recommended { AMBER } else { MUTED })))
+                .child(sketch::border(seed(id), alpha(BLUE, if recommended { 1. } else { 0.35 }), 1.3))
+                .child(icon(name, 18., c(if recommended { BLUE } else { MUTED })))
                 .child(
                     div()
                         .flex()
                         .flex_col()
-                        .gap_1()
+                        .gap_0p5()
                         .child(
                             div()
                                 .flex()
                                 .items_center()
                                 .gap_2()
-                                .child(div().font_weight(FontWeight::BOLD).text_size(px(14.)).child(title))
+                                .child(hand(title, 18., TEXT))
                                 .when(recommended, |el| {
                                     el.child(
-                                        div()
-                                            .px_1p5()
-                                            .rounded(px(3.))
-                                            .bg(c(AMBER))
-                                            .font_family(MONO)
+                                        mono("RECOMMENDED", 9.5, theme::SHEET)
                                             .font_weight(FontWeight::BOLD)
-                                            .text_size(px(9.5))
-                                            .text_color(c(theme::ON_AMBER))
-                                            .child("RECOMMENDED"),
+                                            .px_1p5()
+                                            .bg(c(BLUE)),
                                     )
                                 }),
                         )
-                        .child(div().text_size(px(12.5)).text_color(c(MUTED)).child(body)),
+                        .child(hand(body, 14., MUTED)),
                 )
         };
 
@@ -1144,29 +1123,20 @@ impl Board {
             div()
                 .flex()
                 .flex_col()
-                .gap_4()
+                .gap_3()
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap_3()
-                        .child(icon(IconName::SquareTerminal, 20., c(AMBER)))
-                        .child(
-                            div()
-                                .text_size(px(14.))
-                                .child("Finish in the terminal window. Enter your password there."),
-                        ),
+                        .child(icon(IconName::SquareTerminal, 22., c(BLUE)))
+                        .child(hand("finish in the terminal window, it asks for your password", 17., TEXT)),
                 )
-                .child(
-                    div()
-                        .text_size(px(12.5))
-                        .text_color(c(MUTED))
-                        .child("portboard starts your projects as soon as the proxy is up."),
-                )
+                .child(hand("portboard starts your projects as soon as the proxy is up.", 15., MUTED))
                 .child(div().flex().justify_end().child(button(
                     "cancel-setup",
                     None,
-                    "Cancel",
+                    "cancel",
                     Kind::Ghost,
                     cx.listener(|this, _, _, cx| {
                         this.m.cancel_setup();
@@ -1192,43 +1162,43 @@ impl Board {
                 .flex()
                 .flex_col()
                 .gap_3()
-                .child(
-                    div().text_size(px(13.5)).text_color(c(MUTED)).child(format!(
-                        "To serve https://name.localhost with no port, the portless proxy listens on port {port}, \
-                         which needs your password once.{}",
-                        stray
-                            .map(|p| format!(" The proxy on :{p} will be stopped first."))
-                            .unwrap_or_default()
-                    )),
-                )
+                .child(hand(
+                    format!(
+                        "to serve https://name.localhost with no port, the portless proxy listens on port {port}. \
+                         that needs your password once.{}",
+                        stray.map(|p| format!(" the proxy on :{p} will be stopped first.")).unwrap_or_default()
+                    ),
+                    15.,
+                    MUTED,
+                ))
                 .child(option(
                     "setup-service",
                     IconName::ShieldCheck,
-                    "Install as a service",
-                    "Opens a terminal for your password. Starts on boot and trusts the HTTPS certificate.".into(),
+                    "install as a service",
+                    "opens a terminal for your password · starts on boot · trusts the https certificate".into(),
                     true,
                     Box::new(svc),
                 ))
                 .child(option(
                     "setup-once",
                     IconName::Power,
-                    "Start once",
-                    "Opens a terminal for your password. Runs until you reboot.".into(),
+                    "start once",
+                    "opens a terminal for your password · runs until you reboot".into(),
                     false,
                     Box::new(once),
                 ))
                 .child(option(
                     "setup-fallback",
                     IconName::Globe,
-                    "Skip, use port 1355",
-                    format!("No password. URLs end in :{fallback}."),
+                    "skip, use port 1355",
+                    format!("no password · urls end in :{fallback}"),
                     false,
                     Box::new(fb),
                 ))
                 .child(div().flex().justify_end().child(button(
                     "cancel-setup",
                     None,
-                    "Cancel",
+                    "cancel",
                     Kind::Ghost,
                     cx.listener(|this, _, _, cx| {
                         this.m.cancel_setup();
@@ -1238,56 +1208,35 @@ impl Board {
                 .into_any_element()
         };
 
-        div()
-            .absolute()
-            .inset_0()
-            .flex()
-            .items_center()
-            .justify_center()
-            .bg(alpha(0x000000, 0.62))
-            .occlude()
-            .child(
-                div()
-                    .w(px(560.))
-                    .flex()
-                    .flex_col()
-                    .gap_4()
-                    .p_6()
-                    .rounded(px(10.))
-                    .bg(c(PANEL))
-                    .border_1()
-                    .border_color(c(LINE))
-                    .shadow_lg()
-                    .child(caps(if waiting { "WAITING FOR THE PROXY" } else { "ONE-TIME SETUP" }).text_color(c(AMBER)))
-                    .child(
-                        div()
-                            .font_weight(FontWeight::BOLD)
-                            .text_size(px(20.))
-                            .child("Clean URLs need the proxy on port 443"),
-                    )
-                    .child(content),
-            )
+        modal(
+            sheet("setup")
+                .w(px(580.))
+                .p_6()
+                .flex()
+                .flex_col()
+                .gap_3()
+                .child(hand(if waiting { "waiting for the proxy" } else { "one-time setup" }, 15., MUTED))
+                .child(hand("clean urls need port 443", 28., BLUE))
+                .child(sketch::rule(seed("setup-rule"), alpha(BLUE, 0.45), 1.1))
+                .child(content),
+        )
     }
 
     fn render_toast(&self) -> Option<impl IntoElement> {
         let (text, kind, _) = self.m.message.as_ref()?;
-        let color = if *kind == MsgKind::Error { RED } else { AMBER };
+        let color = if *kind == MsgKind::Error { RED } else { BLUE };
         Some(
-            div().absolute().bottom_5().left_0().right_0().flex().justify_center().child(
-                div()
+            div().absolute().bottom_6().left_0().right_0().flex().justify_center().child(
+                sheet("toast")
                     .flex()
                     .items_center()
                     .gap_2p5()
-                    .max_w(px(640.))
+                    .max_w(px(680.))
                     .px_4()
-                    .py_2p5()
-                    .rounded(px(8.))
-                    .bg(c(RAISED_HI))
-                    .border_1()
-                    .border_color(alpha(color, 0.5))
-                    .shadow_lg()
+                    .py_2()
+                    .shadow_md()
                     .child(div().size(px(7.)).flex_none().rounded_full().bg(c(color)))
-                    .child(div().text_size(px(13.)).child(text.clone())),
+                    .child(hand(text.clone(), 16., TEXT)),
             ),
         )
     }
@@ -1305,33 +1254,61 @@ impl Render for Board {
         div()
             .relative()
             .size_full()
-            .flex()
-            .flex_col()
-            .bg(c(INK))
+            .bg(c(PAPER))
             .text_color(c(TEXT))
-            .font_family(SANS)
+            .font_family(HAND)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
-            .child(self.render_top_bar(cx))
-            .child(self.render_board(cx))
-            .child(self.render_console(cx))
+            .child(sketch::grid(16., wash(0.055), wash(0.11)))
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .p(px(GUTTER))
+                    .flex()
+                    .gap(px(GUTTER))
+                    .child(
+                        div()
+                            .w(px(SIDEBAR))
+                            .flex_none()
+                            .flex()
+                            .flex_col()
+                            .gap(px(GUTTER))
+                            .child(self.render_projects(cx))
+                            .child(self.render_manage(cx)),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .gap(px(GUTTER))
+                            .child(self.render_details(cx))
+                            .child(self.render_logs(cx)),
+                    ),
+            )
             .children(self.render_toast())
             .children(form)
             .children(setup)
     }
 }
 
-fn tag(name: &'static str) -> Div {
+/// Dim the drawing behind a dialog with a paper-colored veil.
+fn modal(content: impl IntoElement) -> Div {
     div()
-        .flex_none()
-        .px_1p5()
-        .rounded(px(3.))
-        .border_1()
-        .border_color(c(LINE))
-        .font_family(MONO)
-        .text_size(px(10.))
-        .text_color(c(MUTED))
-        .child(name)
+        .absolute()
+        .inset_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        .bg(alpha(PAPER, 0.78))
+        .occlude()
+        .child(content)
+}
+
+fn tag(name: &'static str) -> Div {
+    mono(name, 10., BLUE).flex_none().px_1p5().border_1().border_color(alpha(BLUE, 0.4))
 }
 
 fn log_line(raw: &str) -> AnyElement {
@@ -1339,7 +1316,7 @@ fn log_line(raw: &str) -> AnyElement {
         return div().h(px(19.)).into_any_element();
     }
     if raw.starts_with("── ") {
-        return div().text_color(c(AMBER)).child(raw.to_string()).into_any_element();
+        return div().text_color(c(BLUE)).child(raw.to_string()).into_any_element();
     }
     if raw.starts_with("$ portless") {
         return div().text_color(c(FAINT)).child(raw.to_string()).into_any_element();
