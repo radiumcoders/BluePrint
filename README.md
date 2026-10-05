@@ -16,6 +16,17 @@ main action are solid ink, so the eye always has one place to land.
 
 ## Install
 
+Download the latest release from the
+[releases page](https://github.com/radiumcoders/BluePrint/releases):
+
+- **Linux**: `blueprint-<version>-linux-x86_64.AppImage`. Make it executable and run it:
+  `chmod +x blueprint-*.AppImage && ./blueprint-*.AppImage`. It needs glibc 2.35 or newer
+  (Ubuntu 22.04, Fedora 36, Arch and later), plus `libfuse2` for AppImages in general.
+- **Windows**: `blueprint-<version>-windows-x86_64.zip` or the plain `.exe`. It isn't
+  code-signed, so SmartScreen asks first: "More info → Run anyway".
+
+Or build it yourself:
+
 ```sh
 cargo install --path .
 blueprint
