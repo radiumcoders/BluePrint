@@ -953,7 +953,7 @@ impl Board {
                         div()
                             .flex()
                             .gap_2()
-                            .child(div().flex_1().child(Input::new(&form.filter)))
+                            .child(div().flex_1().font_family(MONO).child(Input::new(&form.filter)))
                             .child(button(
                                 "browse",
                                 Some(IconName::FolderSearch),
@@ -1030,20 +1030,20 @@ impl Board {
                         .child(folder_section)
                         .when_some(err(Field::Folder), |el, e| el.child(hand(e, 14., RED))),
                 )
-                .child(field("name", Input::new(&form.name).into_any_element(), Some(preview), err(Field::Name)))
+                .child(field("name", div().font_family(MONO).child(Input::new(&form.name)).into_any_element(), Some(preview), err(Field::Name)))
                 .child(
                     div()
                         .flex()
                         .gap_4()
                         .child(div().w(px(150.)).child(field(
                             "port",
-                            Input::new(&form.port).into_any_element(),
+                            div().font_family(MONO).child(Input::new(&form.port)).into_any_element(),
                             None,
                             err(Field::Port),
                         )))
                         .child(div().flex_1().child(field(
                             "command",
-                            Input::new(&form.command).into_any_element(),
+                            div().font_family(MONO).child(Input::new(&form.command)).into_any_element(),
                             None,
                             err(Field::Command),
                         ))),
