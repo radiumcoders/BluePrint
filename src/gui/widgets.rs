@@ -43,7 +43,7 @@ pub fn placeholder(text: impl Into<SharedString>) -> Div {
         .flex()
         .items_center()
         .justify_center()
-        .child(sketch::border(wash(0.35), 1., 6.))
+        .child(sketch::border(wash(0.35), 1.))
         .child(sketch::cross(wash(0.22)))
         .child(tag(text))
 }
@@ -58,9 +58,9 @@ fn caption(text: &str) -> Div {
     mono(text.to_uppercase(), 10.5, FAINT).font_weight(FontWeight::MEDIUM)
 }
 
-/// A white sheet outlined in ink, its edges running past the corners.
+/// A sheet outlined in ink.
 pub fn sheet() -> Div {
-    div().relative().bg(sheet_fill()).child(sketch::border(wash(0.75), 1., 10.))
+    div().relative().bg(sheet_fill()).child(sketch::border(wash(0.75), 1.))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -107,7 +107,7 @@ pub fn button(
         .cursor_pointer()
         .hover(move |el| el.bg(hover_bg).text_color(hover_fg))
         .on_click(on_click)
-        .when(kind == Kind::Plain, |el| el.child(sketch::border(wash(0.75), 1., 4.)))
+        .when(kind == Kind::Plain, |el| el.child(sketch::border(wash(0.75), 1.)))
         .when_some(name, |el, name| el.child(icon(name, 15., fg)))
         .child(label.into())
 }

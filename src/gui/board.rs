@@ -416,7 +416,7 @@ impl Board {
             .map(|el| {
                 if selected {
                     el.child(sketch::hatch(wash(0.2), 5.))
-                        .child(sketch::border(c(INK), 1., 6.))
+                        .child(sketch::border(c(INK), 1.))
                 } else {
                     el.hover(|el| el.bg(wash(0.05)))
                 }
@@ -1095,7 +1095,7 @@ impl Board {
                 .cursor_pointer()
                 .hover(|el| el.bg(wash(0.05)))
                 .on_click(move |ev, window, cx| on_click(ev, window, cx))
-                .child(sketch::border(alpha(INK, if recommended { 1. } else { 0.35 }), 1., 6.))
+                .child(sketch::border(alpha(INK, if recommended { 1. } else { 0.35 }), 1.))
                 .child(icon(name, 18., c(if recommended { INK } else { MUTED })))
                 .child(
                     div()

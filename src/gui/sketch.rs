@@ -1,5 +1,5 @@
-//! Drafting strokes for the blueprint look: dead-straight construction lines
-//! that run past their corners, a blueprint grid, and straight hatching.
+//! Drafting strokes for the blueprint look: dead-straight outlines, a
+//! blueprint grid, and straight hatching.
 
 use gpui_kit::*;
 
@@ -15,19 +15,18 @@ fn vline(window: &mut Window, x: f32, y0: f32, y1: f32, width: f32, color: Rgba)
     window.paint_quad(fill(Bounds::new(pt(x, y0), size(px(width), px(y1 - y0))), color));
 }
 
-/// An outline for its (relative) parent, drawn as four straight lines that
-/// overshoot each corner by `overshoot`, like construction lines on a drawing.
-pub fn border(color: Rgba, width: f32, overshoot: f32) -> impl IntoElement {
+/// A crisp outline for its (relative) parent, drawn as four straight lines
+/// that meet exactly at the corners.
+pub fn border(color: Rgba, width: f32) -> impl IntoElement {
     canvas(
         |_, _, _| (),
         move |bounds, _, window, _| {
             let (x0, y0) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
             let (x1, y1) = (x0 + f32::from(bounds.size.width) - width, y0 + f32::from(bounds.size.height) - width);
-            let o = overshoot;
-            hline(window, x0 - o, x1 + width + o, y0, width, color);
-            hline(window, x0 - o, x1 + width + o, y1, width, color);
-            vline(window, x0, y0 - o, y1 + width + o, width, color);
-            vline(window, x1, y0 - o, y1 + width + o, width, color);
+            hline(window, x0, x1 + width, y0, width, color);
+            hline(window, x0, x1 + width, y1, width, color);
+            vline(window, x0, y0, y1 + width, width, color);
+            vline(window, x1, y0, y1 + width, width, color);
         },
     )
     .absolute()
