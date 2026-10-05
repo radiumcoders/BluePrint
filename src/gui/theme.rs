@@ -1,5 +1,5 @@
-//! portboard's look: a blueprint. White sheets drafted in blue ink on dot
-//! grid paper, set entirely in a technical mono.
+//! portboard's look: a blueprint. White ink on a blue field with a fine
+//! grid, set entirely in a technical mono.
 
 use std::borrow::Cow;
 
@@ -11,18 +11,19 @@ use crate::ansi;
 /// The one typeface: clean, technical, monospaced.
 pub const MONO: &str = "IBM Plex Mono";
 
-/// Drafting paper behind the sheets.
-pub const PAPER: u32 = 0xf4f7fd;
-pub const SHEET: u32 = 0xffffff;
-/// The ink. Everything structural is drawn in it.
-pub const BLUE: u32 = 0x0552e1;
-pub const BLUE_DEEP: u32 = 0x0340b0;
-pub const TEXT: u32 = 0x0b1f4d;
-pub const MUTED: u32 = 0x5a6b8c;
-pub const FAINT: u32 = 0x9aa8c2;
-pub const GREEN: u32 = 0x0e9f6e;
-pub const AMBER: u32 = 0xd98206;
-pub const RED: u32 = 0xd92d20;
+/// The blueprint field everything is drawn on.
+pub const FIELD: u32 = 0x0552e1;
+/// The ink: every line, heading and link is drawn in it.
+pub const INK: u32 = 0xffffff;
+/// Blue text on white ink (tags, primary buttons).
+pub const ON_INK: u32 = 0x0552e1;
+pub const TEXT: u32 = 0xffffff;
+/// White at 72% and 45% over the field, kept opaque for crisp text.
+pub const MUTED: u32 = 0xb9cff7;
+pub const FAINT: u32 = 0x76a0ee;
+pub const GREEN: u32 = 0x7dffb0;
+pub const AMBER: u32 = 0xffd166;
+pub const RED: u32 = 0xff8a80;
 
 pub fn c(hex: u32) -> Rgba {
     rgb(hex)
@@ -34,9 +35,14 @@ pub fn alpha(hex: u32, a: f32) -> Rgba {
     c
 }
 
-/// Blue at low opacity, for hover and selection fills.
+/// White ink at low opacity, for hover and selection fills.
 pub fn wash(a: f32) -> Rgba {
-    alpha(BLUE, a)
+    alpha(INK, a)
+}
+
+/// A sheet's fill: a deeper blue that lets the grid show through faintly.
+pub fn sheet_fill() -> Rgba {
+    alpha(0x0236a8, 0.5)
 }
 
 /// Register the bundled fonts and restyle gpui-component widgets (inputs).
@@ -51,31 +57,35 @@ pub fn install(cx: &mut App) {
         eprintln!("portboard: couldn't load bundled fonts: {e}");
     }
 
-    Theme::change(ThemeMode::Light, None, cx);
+    Theme::change(ThemeMode::Dark, None, cx);
     let t = Theme::global_mut(cx);
     t.font_family = MONO.into();
     t.mono_font_family = MONO.into();
     t.font_size = px(13.5);
-    t.radius = px(4.);
+    t.radius = px(0.);
     t.foreground = Hsla::from(c(TEXT));
-    t.background = Hsla::from(c(SHEET));
-    t.caret = Hsla::from(c(BLUE));
-    t.selection = Hsla::from(wash(0.22));
+    t.background = Hsla::from(c(0x0340b8));
+    t.caret = Hsla::from(c(INK));
+    t.selection = Hsla::from(wash(0.3));
     t.muted_foreground = Hsla::from(c(FAINT));
-    t.border = Hsla::from(alpha(BLUE, 0.35));
-    t.input = Hsla::from(alpha(BLUE, 0.35));
-    t.ring = Hsla::from(c(BLUE));
+    t.border = Hsla::from(wash(0.45));
+    t.input = Hsla::from(wash(0.45));
+    t.ring = Hsla::from(c(INK));
 }
 
-/// Log colors, darkened to read on white paper.
+/// Log colors, lightened to read on the blue field.
 pub fn ansi_color(color: ansi::Color) -> Rgba {
-    const BASIC: [u32; 8] = [0x3a4560, 0xc62828, 0x1b7f4b, 0xa86400, 0x0552e1, 0x8e2bc9, 0x0b7f8f, 0x6b7896];
-    const BRIGHT: [u32; 8] = [0x6b7896, 0xe0443a, 0x22995c, 0xc07a00, 0x2f6ff0, 0xa64ee0, 0x12919f, 0x8a96b0];
-    // Light colors meant for dark terminals would vanish on white.
-    let darken = |r: u32, g: u32, b: u32| {
+    const BASIC: [u32; 8] = [0x9db7f5, 0xff9d94, 0x8affc1, 0xffe08a, 0xc4d8ff, 0xf0b3ff, 0x8af3ff, 0xffffff];
+    const BRIGHT: [u32; 8] = [0xb9cff7, 0xffb8b1, 0xb0ffd4, 0xffeab0, 0xdbe7ff, 0xf6ccff, 0xb5f8ff, 0xffffff];
+    // Dark colors meant for light terminals would vanish on blue.
+    let lighten = |r: u32, g: u32, b: u32| {
         let lum = 0.2126 * r as f32 + 0.7152 * g as f32 + 0.0722 * b as f32;
-        let k = if lum > 150. { 150. / lum } else { 1. };
-        rgb((((r as f32 * k) as u32) << 16) | (((g as f32 * k) as u32) << 8) | (b as f32 * k) as u32)
+        if lum >= 150. {
+            return rgb((r << 16) | (g << 8) | b);
+        }
+        let t = (150. - lum) / 255.;
+        let up = |v: u32| (v as f32 + (255. - v as f32) * t * 1.6).min(255.) as u32;
+        rgb((up(r) << 16) | (up(g) << 8) | up(b))
     };
     match color {
         ansi::Color::Basic(i) => rgb(BASIC[i as usize % 8]),
@@ -84,14 +94,14 @@ pub fn ansi_color(color: ansi::Color) -> Rgba {
         ansi::Color::Indexed(i) if i < 16 => rgb(BRIGHT[i as usize - 8]),
         ansi::Color::Indexed(i) if i >= 232 => {
             let v = 8 + (i as u32 - 232) * 10;
-            darken(v, v, v)
+            lighten(v, v, v)
         }
         ansi::Color::Indexed(i) => {
             // 6x6x6 color cube.
             let i = i as u32 - 16;
             let level = |n: u32| if n == 0 { 0 } else { 55 + n * 40 };
-            darken(level(i / 36), level((i / 6) % 6), level(i % 6))
+            lighten(level(i / 36), level((i / 6) % 6), level(i % 6))
         }
-        ansi::Color::Rgb(r, g, b) => darken(r as u32, g as u32, b as u32),
+        ansi::Color::Rgb(r, g, b) => lighten(r as u32, g as u32, b as u32),
     }
 }

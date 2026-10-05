@@ -5,7 +5,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{AMBER, BLUE, BLUE_DEEP, FAINT, GREEN, MONO, MUTED, RED, SHEET, alpha, c, wash};
+use super::theme::{AMBER, FAINT, GREEN, INK, MONO, MUTED, ON_INK, RED, alpha, c, sheet_fill, wash};
 use crate::manager::Status;
 
 pub fn icon(name: IconName, size: f32, color: Rgba) -> Svg {
@@ -19,7 +19,7 @@ pub fn label(text: impl Into<SharedString>, size: f32, color: u32) -> Div {
 
 /// A section heading.
 pub fn heading(text: impl Into<SharedString>, size: f32) -> Div {
-    label(text, size, BLUE).font_weight(FontWeight::SEMIBOLD)
+    label(text, size, INK).font_weight(FontWeight::SEMIBOLD)
 }
 
 /// A small uppercase caption, like a field name on a drawing.
@@ -29,7 +29,7 @@ fn caption(text: &str) -> Div {
 
 /// A white sheet outlined in ink, its edges running past the corners.
 pub fn sheet() -> Div {
-    div().relative().bg(c(SHEET)).child(sketch::border(c(BLUE), 1., 10.))
+    div().relative().bg(sheet_fill()).child(sketch::border(wash(0.75), 1., 10.))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -51,12 +51,12 @@ pub fn button(
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
     let (fg, bg, hover_bg) = match kind {
-        Kind::Primary => (c(SHEET), c(BLUE), c(BLUE_DEEP)),
-        Kind::Plain => (c(BLUE), c(SHEET), wash(0.08)),
-        Kind::Ghost => (c(MUTED), alpha(SHEET, 0.), wash(0.07)),
-        Kind::Danger => (c(SHEET), c(RED), c(0xb42318)),
+        Kind::Primary => (c(ON_INK), c(INK), c(0xdbe7ff)),
+        Kind::Plain => (c(INK), wash(0.), wash(0.1)),
+        Kind::Ghost => (c(MUTED), wash(0.), wash(0.08)),
+        Kind::Danger => (c(INK), c(0xe5483c), c(0xc93a2f)),
     };
-    let hover_fg = if kind == Kind::Ghost { c(BLUE) } else { fg };
+    let hover_fg = if kind == Kind::Ghost { c(INK) } else { fg };
     div()
         .id(id)
         .relative()
@@ -76,7 +76,7 @@ pub fn button(
         .cursor_pointer()
         .hover(move |el| el.bg(hover_bg).text_color(hover_fg))
         .on_click(on_click)
-        .when(kind == Kind::Plain, |el| el.child(sketch::border(c(BLUE), 1., 4.)))
+        .when(kind == Kind::Plain, |el| el.child(sketch::border(wash(0.75), 1., 4.)))
         .when_some(name, |el, name| el.child(icon(name, 15., fg)))
         .child(label.into())
 }
@@ -97,7 +97,7 @@ pub fn icon_button(
         .size(px(32.))
         .rounded(px(3.))
         .cursor_pointer()
-        .hover(|el| el.bg(wash(0.08)))
+        .hover(|el| el.bg(wash(0.1)))
         .on_click(on_click)
         .tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(tooltip).build(window, cx))
         .child(icon(name, 16., color))

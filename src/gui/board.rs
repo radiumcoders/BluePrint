@@ -11,7 +11,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{self, BLUE, FAINT, MONO, MUTED, PAPER, RED, TEXT, alpha, c, wash};
+use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, TEXT, alpha, c, wash};
 use super::widgets::{Kind, button, heading, icon, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
@@ -403,7 +403,7 @@ impl Board {
                     .child(heading("projects", 18.))
                     .child(mono(format!("{count:02}"), 12., FAINT).pb_1()),
             )
-            .child(div().px_4().child(sketch::rule(alpha(BLUE, 0.55))))
+            .child(div().px_4().child(sketch::rule(alpha(INK, 0.55))))
             .child(body)
     }
 
@@ -432,7 +432,7 @@ impl Board {
             .map(|el| {
                 if selected {
                     el.child(sketch::hatch(wash(0.2), 5.))
-                        .child(sketch::border(c(BLUE), 1., 6.))
+                        .child(sketch::border(c(INK), 1., 6.))
                 } else {
                     el.hover(|el| el.bg(wash(0.05)))
                 }
@@ -449,7 +449,7 @@ impl Board {
                     .flex()
                     .flex_col()
                     .child(
-                        mono(e.project.name.clone(), 14., if selected { BLUE } else { TEXT })
+                        mono(e.project.name.clone(), 14., if selected { INK } else { TEXT })
                             .font_weight(FontWeight::MEDIUM)
                             .truncate(),
                     )
@@ -471,7 +471,7 @@ impl Board {
                 icon_button(
                     SharedString::from(format!("start-{id}")),
                     IconName::Play,
-                    c(BLUE),
+                    c(INK),
                     "Start (Enter)",
                     cx.listener(move |this, _, _, cx| {
                         this.m.start(id);
@@ -497,7 +497,7 @@ impl Board {
         };
         let clean = m.proxy_needs_root();
         let any_active = m.entries.iter().any(Entry::is_active);
-        let line = alpha(BLUE, 0.3);
+        let line = alpha(INK, 0.3);
 
         let cell_label = |text: &'static str| {
             div()
@@ -569,7 +569,7 @@ impl Board {
                             .px_2p5()
                             .flex_1()
                             .child(mono(if clean { "clean · no port" } else { "with :1355" }, 12., TEXT))
-                            .when(!clean, |el| el.child(div().flex_1()).child(label("make clean", 11.5, BLUE))),
+                            .when(!clean, |el| el.child(div().flex_1()).child(label("make clean", 11.5, INK))),
                     ),
             )
             .child(
@@ -715,7 +715,7 @@ impl Board {
                     .child(icon_button(
                         "open",
                         IconName::ExternalLink,
-                        c(BLUE),
+                        c(INK),
                         "Open in browser (O)",
                         cx.listener(move |this, _, _, cx| {
                             if let Some(e) = this.m.get(id) {
@@ -726,7 +726,7 @@ impl Board {
                     .child(icon_button(
                         "copy",
                         IconName::Copy,
-                        c(BLUE),
+                        c(INK),
                         "Copy URL",
                         cx.listener(move |this, _, _, cx| {
                             cx.write_to_clipboard(ClipboardItem::new_string(copy_url.clone()));
@@ -737,7 +737,7 @@ impl Board {
                     .child(icon_button(
                         "restart",
                         IconName::RotateCw,
-                        c(BLUE),
+                        c(INK),
                         "Restart (R)",
                         cx.listener(move |this, _, _, cx| {
                             this.m.restart(id);
@@ -747,7 +747,7 @@ impl Board {
                     .child(icon_button(
                         "edit",
                         IconName::Pencil,
-                        c(BLUE),
+                        c(INK),
                         "Edit (E)",
                         cx.listener(move |this, _, window, cx| this.open_form(Some(id), window, cx)),
                     ))
@@ -781,16 +781,16 @@ impl Board {
                     .gap_1p5()
                     .font_family(MONO)
                     .text_size(px(15.))
-                    .text_color(c(if live { BLUE } else { FAINT }))
+                    .text_color(c(if live { INK } else { FAINT }))
                     .when(live, |el| {
                         el.cursor_pointer()
                             .hover(|el| el.underline())
                             .on_click(move |_, _, cx| cx.open_url(&open_url))
                     })
                     .child(url)
-                    .when(live, |el| el.child(icon(IconName::ArrowUpRight, 15., c(BLUE)))),
+                    .when(live, |el| el.child(icon(IconName::ArrowUpRight, 15., c(INK)))),
             )
-            .child(sketch::rule(alpha(BLUE, 0.4)))
+            .child(sketch::rule(alpha(INK, 0.4)))
             .child(
                 div()
                     .flex()
@@ -873,7 +873,7 @@ impl Board {
             .flex()
             .flex_col()
             .child(header)
-            .child(div().px_4().child(sketch::rule(alpha(BLUE, 0.4))))
+            .child(div().px_4().child(sketch::rule(alpha(INK, 0.4))))
             .child(body)
     }
 
@@ -882,7 +882,7 @@ impl Board {
         let err = |field: Field| form.error.as_ref().filter(|(f, _)| *f == field).map(|(_, m)| m.clone());
         let name_value = form.name.read(cx).value().to_string();
         let preview = self.m.url_for(if name_value.trim().is_empty() { "name" } else { name_value.trim() });
-        let line = alpha(BLUE, 0.3);
+        let line = alpha(INK, 0.3);
 
         let folder_section: AnyElement = match &form.folder {
             Some(path) => div()
@@ -894,7 +894,7 @@ impl Board {
                 .border_1()
                 .border_color(line)
                 .bg(wash(0.04))
-                .child(icon(IconName::FolderOpen, 16., c(BLUE)))
+                .child(icon(IconName::FolderOpen, 16., c(INK)))
                 .child(
                     mono(display_path(path), 12.5, TEXT)
                         .flex_1()
@@ -938,7 +938,7 @@ impl Board {
                             .cursor_pointer()
                             .hover(|el| el.bg(wash(0.07)))
                             .on_click(cx.listener(move |this, _, window, cx| this.pick_folder(path.clone(), window, cx)))
-                            .child(icon(IconName::Folder, 14., c(BLUE)))
+                            .child(icon(IconName::Folder, 14., c(INK)))
                             .child(mono(f.name.clone(), 12.5, TEXT).flex_1().truncate())
                             .children(f.tags.iter().copied().map(tag))
                             .into_any_element()
@@ -995,7 +995,7 @@ impl Board {
                 .child(input)
                 .map(|el| match (error, note) {
                     (Some(e), _) => el.child(label(e, 12., RED)),
-                    (None, Some(n)) => el.child(mono(n, 12., BLUE)),
+                    (None, Some(n)) => el.child(mono(n, 12., INK)),
                     (None, None) => el,
                 })
         };
@@ -1020,7 +1020,7 @@ impl Board {
                             cx.listener(|this, _, window, cx| this.close_form(window, cx)),
                         )),
                 )
-                .child(sketch::rule(alpha(BLUE, 0.45)))
+                .child(sketch::rule(alpha(INK, 0.45)))
                 .child(
                     div()
                         .flex()
@@ -1093,8 +1093,8 @@ impl Board {
                 .cursor_pointer()
                 .hover(|el| el.bg(wash(0.05)))
                 .on_click(move |ev, window, cx| on_click(ev, window, cx))
-                .child(sketch::border(alpha(BLUE, if recommended { 1. } else { 0.35 }), 1., 6.))
-                .child(icon(name, 18., c(if recommended { BLUE } else { MUTED })))
+                .child(sketch::border(alpha(INK, if recommended { 1. } else { 0.35 }), 1., 6.))
+                .child(icon(name, 18., c(if recommended { INK } else { MUTED })))
                 .child(
                     div()
                         .flex_1()
@@ -1110,10 +1110,10 @@ impl Board {
                                 .child(label(title, 14., TEXT).font_weight(FontWeight::SEMIBOLD))
                                 .when(recommended, |el| {
                                     el.child(
-                                        mono("RECOMMENDED", 9.5, theme::SHEET)
+                                        mono("RECOMMENDED", 9.5, theme::ON_INK)
                                             .font_weight(FontWeight::BOLD)
                                             .px_1p5()
-                                            .bg(c(BLUE)),
+                                            .bg(c(INK)),
                                     )
                                 }),
                         )
@@ -1131,7 +1131,7 @@ impl Board {
                         .flex()
                         .items_center()
                         .gap_3()
-                        .child(icon(IconName::SquareTerminal, 22., c(BLUE)))
+                        .child(icon(IconName::SquareTerminal, 22., c(INK)))
                         .child(label("finish in the terminal window, it asks for your password", 13., TEXT)),
                 )
                 .child(label("portboard starts your projects as soon as the proxy is up.", 12.5, MUTED))
@@ -1219,14 +1219,14 @@ impl Board {
                 .gap_3()
                 .child(label(if waiting { "waiting for the proxy" } else { "one-time setup" }, 12.5, MUTED))
                 .child(heading("clean urls need port 443", 20.))
-                .child(sketch::rule(alpha(BLUE, 0.45)))
+                .child(sketch::rule(alpha(INK, 0.45)))
                 .child(content),
         )
     }
 
     fn render_toast(&self) -> Option<impl IntoElement> {
         let (text, kind, _) = self.m.message.as_ref()?;
-        let color = if *kind == MsgKind::Error { RED } else { BLUE };
+        let color = if *kind == MsgKind::Error { RED } else { INK };
         Some(
             div().absolute().bottom_6().left_0().right_0().flex().justify_center().child(
                 sheet()
@@ -1257,12 +1257,12 @@ impl Render for Board {
         div()
             .relative()
             .size_full()
-            .bg(c(PAPER))
+            .bg(c(FIELD))
             .text_color(c(TEXT))
             .font_family(MONO)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
-            .child(sketch::dots(18., 1., alpha(BLUE, 0.22)))
+            .child(sketch::dots(18., 1., alpha(INK, 0.22)))
             .child(
                 div()
                     .absolute()
@@ -1305,13 +1305,13 @@ fn modal(content: impl IntoElement) -> Div {
         .flex()
         .items_center()
         .justify_center()
-        .bg(alpha(PAPER, 0.78))
+        .bg(alpha(0x02296f, 0.62))
         .occlude()
         .child(content)
 }
 
 fn tag(name: &'static str) -> Div {
-    mono(name, 10., BLUE).flex_none().px_1p5().border_1().border_color(alpha(BLUE, 0.4))
+    mono(name, 10., INK).flex_none().px_1p5().border_1().border_color(alpha(INK, 0.4))
 }
 
 fn log_line(raw: &str) -> AnyElement {
@@ -1319,7 +1319,7 @@ fn log_line(raw: &str) -> AnyElement {
         return div().h(px(19.)).into_any_element();
     }
     if raw.starts_with("── ") {
-        return div().text_color(c(BLUE)).child(raw.to_string()).into_any_element();
+        return div().text_color(c(INK)).child(raw.to_string()).into_any_element();
     }
     if raw.starts_with("$ portless") {
         return div().text_color(c(FAINT)).child(raw.to_string()).into_any_element();
