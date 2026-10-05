@@ -12,7 +12,7 @@ use gpui_kit::*;
 
 use super::sketch;
 use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, TEXT, alpha, c, wash};
-use super::widgets::{Kind, button, heading, icon, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
+use super::widgets::{Kind, button, corner_tag, heading, icon, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
@@ -393,17 +393,8 @@ impl Board {
             .min_h_0()
             .flex()
             .flex_col()
-            .child(
-                div()
-                    .flex()
-                    .items_end()
-                    .justify_between()
-                    .px_5()
-                    .pt_4()
-                    .child(heading("projects", 18.))
-                    .child(mono(format!("{count:02}"), 12., FAINT).pb_1()),
-            )
-            .child(div().px_4().child(sketch::rule(alpha(INK, 0.55))))
+            .pt_3()
+            .child(corner_tag(format!("PROJECTS · {count:02}")))
             .child(body)
     }
 
@@ -587,6 +578,7 @@ impl Board {
             );
 
         sheet()
+            .child(corner_tag("MANAGE"))
             .flex_none()
             .p_4()
             .flex()
@@ -639,6 +631,7 @@ impl Board {
     fn render_details(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(e) = self.selected.and_then(|id| self.m.get(id)) else {
             return sheet()
+                .child(corner_tag("DETAILS"))
                 .flex_none()
                 .h(px(190.))
                 .flex()
@@ -691,6 +684,7 @@ impl Board {
         };
 
         sheet()
+            .child(corner_tag("DETAILS"))
             .flex_none()
             .px_6()
             .pt_5()
@@ -805,15 +799,17 @@ impl Board {
 
     fn render_logs(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let entry = self.selected.and_then(|id| self.m.get(id));
-        let header = div()
+        let tag = match entry {
+            Some(e) => format!("LOGS · {}", e.project.name.to_uppercase()),
+            None => "LOGS".to_string(),
+        };
+        let tools = div()
+            .absolute()
+            .top_2()
+            .right_3()
             .flex()
             .items_center()
-            .gap_3()
-            .px_5()
-            .pt_3()
-            .child(heading("logs", 18.))
-            .children(entry.map(|e| mono(e.project.name.clone(), 12., FAINT).pt_1()))
-            .child(div().flex_1())
+            .gap_1()
             .when(!self.follow && entry.is_some_and(|e| !e.logs.is_empty()), |el| {
                 el.child(button(
                     "jump",
@@ -872,9 +868,10 @@ impl Board {
             .min_h_0()
             .flex()
             .flex_col()
-            .child(header)
-            .child(div().px_4().child(sketch::rule(alpha(INK, 0.4))))
+            .pt_3()
+            .child(corner_tag(tag))
             .child(body)
+            .child(tools)
     }
 
     fn render_form(&self, form: &ProjectForm, cx: &mut Context<Self>) -> impl IntoElement {

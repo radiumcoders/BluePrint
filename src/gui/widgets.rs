@@ -17,6 +17,21 @@ pub fn label(text: impl Into<SharedString>, size: f32, color: u32) -> Div {
     div().font_family(MONO).text_size(px(size)).text_color(c(color)).child(text.into())
 }
 
+/// A small white tag pinned over a sheet's top edge, like the labels on a
+/// drawing. Pass uppercase text.
+pub fn corner_tag(text: impl Into<SharedString>) -> Div {
+    div()
+        .absolute()
+        .top(px(-8.))
+        .left(px(14.))
+        .h(px(16.))
+        .px_1p5()
+        .flex()
+        .items_center()
+        .bg(c(INK))
+        .child(label(text, 10., ON_INK).font_weight(FontWeight::SEMIBOLD))
+}
+
 /// A section heading.
 pub fn heading(text: impl Into<SharedString>, size: f32) -> Div {
     label(text, size, INK).font_weight(FontWeight::SEMIBOLD)
