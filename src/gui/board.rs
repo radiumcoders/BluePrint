@@ -16,6 +16,7 @@ use super::widgets::{Kind, button, corner_label, corner_tag, heading, lead_sheet
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
+use crate::stack::{self, Recipe};
 use crate::manager::{Entry, Field, Id, Manager, MsgKind, Setup, SetupKind, Status};
 
 /// Rendering more lines than this makes long logs sluggish; older ones stay in memory.
@@ -34,6 +35,8 @@ struct ProjectForm {
     command: Entity<InputState>,
     filter: Entity<InputState>,
     folder: Option<PathBuf>,
+    /// How the picked folder would start, if recognized.
+    recipe: Option<Recipe>,
     /// Subfolders of the projects root, for one-click picking.
     folders: Vec<Folder>,
     error: Option<(Field, String)>,
@@ -211,7 +214,7 @@ impl Board {
             cx,
         );
         let command = input(
-            "package.json \u{201c}dev\u{201d} script",
+            "detected from the folder",
             project.as_ref().map(|p| p.command.clone()).unwrap_or_default(),
             window,
             cx,
@@ -257,6 +260,7 @@ impl Board {
             port,
             command,
             filter: filter.clone(),
+            recipe: project.as_ref().and_then(|p| stack::detect(&p.path)),
             folder: project.map(|p| p.path),
             folders: folders::list(&self.m.config.projects_root),
             error: None,
@@ -276,6 +280,15 @@ impl Board {
             let name = suggest_name(&path);
             form.name.update(cx, |s, cx| s.set_value(name, window, cx));
         }
+        // Same for the command: fill in what the folder looks like it needs.
+        let recipe = stack::detect(&path);
+        let current = form.command.read(cx).value().to_string();
+        let old_command = form.recipe.as_ref().map(|r| r.command.as_str()).unwrap_or_default();
+        if current.trim().is_empty() || current == old_command {
+            let command = recipe.as_ref().map(|r| r.command.clone()).unwrap_or_default();
+            form.command.update(cx, |s, cx| s.set_value(command, window, cx));
+        }
+        form.recipe = recipe;
         form.folder = Some(path);
         form.error = None;
         let name = form.name.clone();
@@ -991,7 +1004,18 @@ impl Board {
             }
         };
 
-        let field = |name: &'static str, input: AnyElement, note: Option<String>, error: Option<String>| {
+        let command_value = form.command.read(cx).value().trim().to_string();
+        let command_note = form.folder.as_ref().map(|dir| match &form.recipe {
+            _ if command_value.is_empty() && stack::has_dev_script(dir) => "runs the package.json dev script".to_string(),
+            Some(r) if r.command == command_value && r.reads_env => {
+                format!("detected {} · the server must listen on $PORT", r.name)
+            }
+            Some(r) if r.command == command_value => format!("detected {} · gets its port from $PORT", r.name),
+            _ if command_value.is_empty() => "set the command that starts the server".to_string(),
+            _ => "the server gets its port in $PORT".to_string(),
+        });
+
+        let field = |name: &'static str, input: AnyElement, note: Option<(String, u32)>, error: Option<String>| {
             div()
                 .flex()
                 .flex_col()
@@ -1000,7 +1024,7 @@ impl Board {
                 .child(input)
                 .map(|el| match (error, note) {
                     (Some(e), _) => el.child(label(e, 12., RED)),
-                    (None, Some(n)) => el.child(mono(n, 12., INK)),
+                    (None, Some((n, color))) => el.child(mono(n, 12., color)),
                     (None, None) => el,
                 })
         };
@@ -1036,7 +1060,7 @@ impl Board {
                         .child(folder_section)
                         .when_some(err(Field::Folder), |el, e| el.child(label(e, 12., RED))),
                 )
-                .child(field("name", text_field(&form.name, window, cx).into_any_element(), Some(preview), err(Field::Name)))
+                .child(field("name", text_field(&form.name, window, cx).into_any_element(), Some((preview, INK)), err(Field::Name)))
                 .child(
                     div()
                         .flex()
@@ -1050,7 +1074,7 @@ impl Board {
                         .child(div().flex_1().child(field(
                             "command",
                             text_field(&form.command, window, cx).into_any_element(),
-                            None,
+                            command_note.map(|n| (n, MUTED)),
                             err(Field::Command),
                         ))),
                 )

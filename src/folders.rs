@@ -17,11 +17,17 @@ const MARKERS: &[(&str, &str)] = &[
     ("Cargo.toml", "rust"),
     ("go.mod", "go"),
     ("pyproject.toml", "python"),
+    ("requirements.txt", "python"),
+    ("Gemfile", "ruby"),
+    ("composer.json", "php"),
+    ("mix.exs", "elixir"),
     (".git", "git"),
 ];
 
 pub fn tags_for(dir: &Path) -> Vec<&'static str> {
-    MARKERS.iter().filter(|(f, _)| dir.join(f).exists()).map(|(_, t)| *t).collect()
+    let mut tags: Vec<_> = MARKERS.iter().filter(|(f, _)| dir.join(f).exists()).map(|(_, t)| *t).collect();
+    tags.dedup();
+    tags
 }
 
 /// Visible subfolders of `root`, sorted by name.

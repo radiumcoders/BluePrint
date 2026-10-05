@@ -372,6 +372,12 @@ impl Manager {
                 return;
             }
         }
+        if let Some(msg) = missing_command(&e.project.path, &e.project.command) {
+            let msg = format!("{} can't start: {msg}", e.project.name);
+            self.entries[i].log(format!("── {msg} ──"));
+            self.error(msg);
+            return;
+        }
         if let Some(port) = e.project.port
             && process::port_in_use(port)
         {
@@ -509,6 +515,9 @@ impl Manager {
             }
         };
         let command = command.trim().to_string();
+        if let Some(msg) = missing_command(folder, &command) {
+            return Err((Field::Command, msg));
+        }
         if !command.is_empty() {
             shell_words::split(&command).map_err(|e| (Field::Command, format!("Can't parse this command: {e}")))?;
         }
@@ -730,13 +739,15 @@ mod tests {
         let mut m = manager();
         let tmp = std::env::temp_dir();
         m.push_entry(Project { name: "taken".into(), path: tmp.clone(), port: Some(3000), command: String::new() });
-        let v = |m: &Manager, name: &str, port: &str| m.validate(None, name, Some(&tmp), port, "").map_err(|e| e.0);
+        let v = |m: &Manager, name: &str, port: &str| m.validate(None, name, Some(&tmp), port, "serve").map_err(|e| e.0);
         assert_eq!(v(&m, "taken", "").unwrap_err(), Field::Name);
         assert_eq!(v(&m, "Bad Name", "").unwrap_err(), Field::Name);
         assert_eq!(v(&m, "fresh", "3000").unwrap_err(), Field::Port);
         assert_eq!(v(&m, "fresh", "99999").unwrap_err(), Field::Port);
         assert_eq!(v(&m, "fresh", "3001").unwrap().port, Some(3001));
         assert_eq!(m.validate(None, "fresh", None, "", "").unwrap_err().0, Field::Folder);
+        // No dev script in the folder, so an empty command can't run.
+        assert_eq!(m.validate(None, "fresh", Some(&tmp), "", "").unwrap_err().0, Field::Command);
         // Editing a project may keep its own name and port.
         let id = m.entries[0].id;
         assert!(m.validate(Some(id), "taken", Some(&tmp), "3000", "pnpm dev").is_ok());
@@ -767,4 +778,16 @@ mod tests {
     fn quoting() {
         assert_eq!(sh_quote("a'b"), r"'a'\''b'");
     }
+}
+
+/// Why an empty command can't work in `dir`: `portless run` needs a
+/// package.json dev script (or portless.json). `None` when it's fine.
+pub fn missing_command(dir: &std::path::Path, command: &str) -> Option<String> {
+    if !command.trim().is_empty() || crate::stack::has_dev_script(dir) {
+        return None;
+    }
+    Some(match crate::stack::detect(dir) {
+        Some(r) if !r.command.is_empty() => format!("there's no dev script here, so set a command, e.g. {}", r.command),
+        _ => "there's no package.json dev script here, so set the command that starts the server".into(),
+    })
 }
