@@ -14,7 +14,6 @@ mod shellenv;
 mod stack;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use anyhow::Result;
 
@@ -44,9 +43,9 @@ fn install_signal_handlers() {
     // If a clean quit stalls, exit anyway; the guardian stops the servers.
     std::thread::spawn(|| {
         while !terminated() {
-            std::thread::sleep(Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        std::thread::sleep(process::STOP_GRACE + Duration::from_secs(2));
+        std::thread::sleep(process::STOP_GRACE + std::time::Duration::from_secs(2));
         std::process::exit(130);
     });
 }

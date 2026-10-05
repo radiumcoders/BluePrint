@@ -3,7 +3,7 @@
 use std::collections::VecDeque;
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
 
@@ -726,7 +726,7 @@ fn open_terminal(title: &str, steps: &[String]) -> std::io::Result<()> {
     ];
     let mut last_err = std::io::Error::new(std::io::ErrorKind::NotFound, "no terminal emulator found");
     for (bin, prefix) in launchers {
-        match Command::new(bin)
+        match std::process::Command::new(bin)
             .args(prefix)
             .args(["sh", "-c", &script])
             .stdin(Stdio::null())
@@ -790,6 +790,7 @@ mod tests {
         assert!(m.proxy_ready());
     }
 
+    #[cfg(unix)]
     #[test]
     fn quoting() {
         assert_eq!(sh_quote("a'b"), r"'a'\''b'");
