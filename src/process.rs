@@ -95,7 +95,8 @@ fn signal_group(pid: u32, sig: libc::c_int) {
 
 /// Shell syntax that `shell_words` can't express as a plain argv.
 fn needs_shell(cmd: &str) -> bool {
-    ["&&", "||", "|", ";", ">", "<", "$(", "`", "*"]
+    // `$` covers `$PORT`, which portless sets for the server to read.
+    ["&&", "||", "|", ";", ">", "<", "$", "`", "*", "~"]
         .iter()
         .any(|t| cmd.contains(t))
 }
@@ -351,6 +352,14 @@ mod tests {
         assert_eq!(
             portless_args(&proj("cd web && bun dev", None)).unwrap(),
             ["--name", "app", "--", "sh", "-c", "cd web && bun dev"]
+        );
+    }
+
+    #[test]
+    fn args_expand_port() {
+        assert_eq!(
+            portless_args(&proj("trunk serve --port $PORT", None)).unwrap(),
+            ["--name", "app", "--", "sh", "-c", "trunk serve --port $PORT"]
         );
     }
 

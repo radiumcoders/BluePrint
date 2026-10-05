@@ -5,6 +5,7 @@ mod guardian;
 mod gui;
 mod manager;
 mod process;
+mod stack;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
