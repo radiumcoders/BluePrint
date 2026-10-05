@@ -1,6 +1,7 @@
 //! The portboard window.
 
 mod board;
+mod sketch;
 mod theme;
 mod widgets;
 
