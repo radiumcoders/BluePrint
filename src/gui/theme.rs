@@ -1,5 +1,5 @@
 //! portboard's look: a blueprint. White ink on a blue field with a fine
-//! grid, set entirely in a technical mono.
+//! grid, set in Geist with Geist Mono for data.
 
 use std::borrow::Cow;
 
@@ -8,8 +8,10 @@ use gpui_kit::{App, Hsla, Rgba, px, rgb};
 
 use crate::ansi;
 
-/// The one typeface: clean, technical, monospaced.
-pub const MONO: &str = "IBM Plex Mono";
+/// The interface face.
+pub const SANS: &str = "Geist";
+/// The data face: URLs, ports, paths, logs, form values and tags.
+pub const MONO: &str = "Geist Mono";
 
 /// The blueprint field everything is drawn on.
 pub const FIELD: u32 = 0x0552e1;
@@ -52,10 +54,14 @@ pub fn sheet_fill() -> Rgba {
 /// Register the bundled fonts and restyle gpui-component widgets (inputs).
 pub fn install(cx: &mut App) {
     let fonts: Vec<Cow<'static, [u8]>> = vec![
-        Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-Regular.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-Medium.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-SemiBold.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-Bold.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/Geist-Regular.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/Geist-Medium.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/Geist-SemiBold.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/Geist-Bold.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/GeistMono-Regular.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/GeistMono-Medium.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/GeistMono-SemiBold.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/GeistMono-Bold.ttf")),
     ];
     if let Err(e) = cx.text_system().add_fonts(fonts) {
         eprintln!("portboard: couldn't load bundled fonts: {e}");
@@ -63,7 +69,7 @@ pub fn install(cx: &mut App) {
 
     Theme::change(ThemeMode::Dark, None, cx);
     let t = Theme::global_mut(cx);
-    t.font_family = MONO.into();
+    t.font_family = SANS.into();
     t.mono_font_family = MONO.into();
     t.font_size = px(13.5);
     t.radius = px(0.);

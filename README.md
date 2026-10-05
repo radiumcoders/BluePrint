@@ -5,7 +5,7 @@ A desktop app for running many dev servers at once through
 (`https://shop.localhost`) instead of a port number.
 
 Built with Rust and [GPUI](https://www.gpui.rs) (through `gpui-kit`), drawn like a blueprint:
-white sheets in `#0552e1` ink on dot-grid paper, set in IBM Plex Mono.
+white sheets in `#0552e1` ink on dot-grid paper, set in Geist and Geist Mono.
 
 ## Requirements
 
@@ -93,4 +93,4 @@ command = "pnpm dev"           # optional
 
 ## Fonts
 
-[IBM Plex Mono](https://github.com/IBM/plex) is bundled under the SIL Open Font License. See `assets/fonts/`.
+[Geist and Geist Mono](https://github.com/vercel/geist-font) are bundled under the SIL Open Font License. See `assets/fonts/`.

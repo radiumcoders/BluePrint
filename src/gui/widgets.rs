@@ -5,16 +5,16 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{AMBER, FAINT, GREEN, INK, MONO, MUTED, ON_INK, RED, alpha, c, sheet_fill, wash};
+use super::theme::{AMBER, FAINT, GREEN, INK, MONO, SANS, MUTED, ON_INK, RED, alpha, c, sheet_fill, wash};
 use crate::manager::Status;
 
 pub fn icon(name: IconName, size: f32, color: Rgba) -> Svg {
     svg().path(name.path()).size(px(size)).flex_none().text_color(color)
 }
 
-/// A line of text in the house face.
+/// A line of text in the interface face.
 pub fn label(text: impl Into<SharedString>, size: f32, color: u32) -> Div {
-    div().font_family(MONO).text_size(px(size)).text_color(c(color)).child(text.into())
+    div().font_family(SANS).text_size(px(size)).text_color(c(color)).child(text.into())
 }
 
 /// A small white tag with blue text, like the labels on a drawing.
@@ -26,7 +26,7 @@ pub fn tag(text: impl Into<SharedString>) -> Div {
         .flex_none()
         .items_center()
         .bg(c(INK))
-        .child(label(text, 10., ON_INK).font_weight(FontWeight::SEMIBOLD))
+        .child(mono(text, 10., ON_INK).font_weight(FontWeight::SEMIBOLD))
 }
 
 /// A [`tag`] pinned over a sheet's top edge. Pass uppercase text.
@@ -55,7 +55,7 @@ pub fn heading(text: impl Into<SharedString>, size: f32) -> Div {
 
 /// A small uppercase caption, like a field name on a drawing.
 fn caption(text: &str) -> Div {
-    label(text.to_uppercase(), 10.5, FAINT).font_weight(FontWeight::MEDIUM)
+    mono(text.to_uppercase(), 10.5, FAINT).font_weight(FontWeight::MEDIUM)
 }
 
 /// A white sheet outlined in ink, its edges running past the corners.
@@ -99,7 +99,7 @@ pub fn button(
         .h(px(34.))
         .px_3p5()
         .rounded(px(3.))
-        .font_family(MONO)
+        .font_family(SANS)
         .font_weight(FontWeight::MEDIUM)
         .text_size(px(13.))
         .text_color(fg)
@@ -176,7 +176,7 @@ pub fn mono(text: impl Into<SharedString>, size: f32, color: u32) -> Div {
     div().font_family(MONO).text_size(px(size)).text_color(c(color)).child(text.into())
 }
 
-/// A blueprint-style field: hand-lettered caption over a mono value.
+/// A blueprint-style field: mono caption over its value.
 pub fn spec(label: &'static str, value: impl Into<SharedString>, value_color: u32) -> Div {
     div()
         .flex()

@@ -11,7 +11,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, TEXT, alpha, c, wash};
+use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, SANS, TEXT, alpha, c, wash};
 use super::widgets::{Kind, button, corner_tag, heading, icon, placeholder, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
@@ -1263,7 +1263,7 @@ impl Render for Board {
             .size_full()
             .bg(c(FIELD))
             .text_color(c(TEXT))
-            .font_family(MONO)
+            .font_family(SANS)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
             .child(sketch::grid(10., 5, wash(0.07), wash(0.15)))
