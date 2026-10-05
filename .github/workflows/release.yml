@@ -1,8 +1,8 @@
 name: release
 
-# Push a tag like v0.2.0 to build Windows binaries and publish them as a
-# GitHub release. Running it by hand builds the same files as a workflow
-# artifact without releasing anything.
+# Push a tag like v0.3.0 to build Windows binaries and a Linux AppImage and
+# publish them as a GitHub release. Running it by hand builds the same files
+# as workflow artifacts without releasing anything.
 on:
   push:
     tags: ["v*"]
@@ -37,27 +37,74 @@ jobs:
           Copy-Item README.md "dist/$name/"
           if (Test-Path LICENSE) { Copy-Item LICENSE "dist/$name/" }
           Compress-Archive -Path "dist/$name/*" -DestinationPath "dist/$name.zip"
-          Copy-Item target/release/blueprint.exe "dist/blueprint-$version-windows-x86_64.exe"
-          Get-ChildItem dist -File | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($_.Name)" | Add-Content dist/SHA256SUMS.txt
-          }
+          Copy-Item target/release/blueprint.exe "dist/$name.exe"
+          Remove-Item -Recurse "dist/$name"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blueprint-windows
-          path: |
-            dist/*.zip
-            dist/*.exe
-            dist/SHA256SUMS.txt
+          path: dist/*
 
-      - name: Publish release
-        if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+  linux:
+    # The oldest supported runner, so the AppImage runs on glibc 2.35 and newer.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libx11-xcb-dev \
+            libwayland-dev libvulkan-dev libfontconfig1-dev libfreetype-dev libfuse2
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Package AppImage
+        env:
+          # linuxdeploy is itself an AppImage; this avoids needing FUSE to run it.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then version="$GITHUB_REF_NAME"; else version="dev-${GITHUB_SHA::7}"; fi
+          curl -sSfL -o linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy
+          mkdir -p icon dist
+          cp assets/icon.png icon/blueprint.png
+          LINUXDEPLOY_OUTPUT_VERSION="$version" ./linuxdeploy --appdir AppDir \
+            --executable target/release/blueprint \
+            --desktop-file packaging/linux/blueprint.desktop \
+            --icon-file icon/blueprint.png \
+            --output appimage
+          mv blueprint-*.AppImage "dist/blueprint-$version-linux-x86_64.AppImage"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blueprint-linux
+          path: dist/*
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: |
-            dist/*.zip
-            dist/*.exe
-            dist/SHA256SUMS.txt
+          files: dist/*
