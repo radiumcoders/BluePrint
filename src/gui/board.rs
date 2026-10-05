@@ -73,6 +73,16 @@ impl Board {
         }
     }
 
+    /// Open a dialog at startup (`PORTBOARD_OPEN=add|edit`), so screenshots
+    /// of a window that can't take keyboard focus can still show it.
+    pub fn open_from_env(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        match std::env::var("PORTBOARD_OPEN").as_deref() {
+            Ok("add") => self.open_form(None, window, cx),
+            Ok("edit") => self.open_form(self.selected, window, cx),
+            _ => {}
+        }
+    }
+
     /// Called ~10 times a second.
     pub fn tick(&mut self, cx: &mut Context<Self>) {
         let mut changed = self.m.tick();

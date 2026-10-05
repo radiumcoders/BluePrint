@@ -26,7 +26,13 @@ pub fn run(manager: Manager) {
             app_id: Some(std::env::var("PORTBOARD_APP_ID").unwrap_or_else(|_| "portboard".into())),
             ..Default::default()
         };
-        let Ok((_, view)) = gpui_kit::open_window(options, cx, |window, cx| cx.new(|cx| Board::new(manager, window, cx)))
+        let Ok((_, view)) = gpui_kit::open_window(options, cx, |window, cx| {
+            cx.new(|cx| {
+                let mut board = Board::new(manager, window, cx);
+                board.open_from_env(window, cx);
+                board
+            })
+        })
         else {
             eprintln!("portboard: couldn't open a window");
             cx.quit();
