@@ -3,6 +3,8 @@
 
 mod ansi;
 mod config;
+#[cfg(test)]
+mod e2e;
 mod folders;
 #[cfg(unix)]
 mod guardian;
