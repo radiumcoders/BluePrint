@@ -793,8 +793,12 @@ impl Board {
             .child(
                 div()
                     .flex()
-                    .gap_8()
-                    .child(spec_tail("folder", display_path(&e.project.path), TEXT).flex_1())
+                    .flex_wrap()
+                    .gap_x_8()
+                    .gap_y_3()
+                    // Keep the folder readable on narrow or scaled windows;
+                    // the other specs wrap below it instead of crushing it.
+                    .child(spec_tail("folder", display_path(&e.project.path), TEXT).flex_1().min_w(px(160.)))
                     .child(spec("port", port, TEXT).w(px(120.)))
                     .child(spec("command", command, if e.project.command.is_empty() { MUTED } else { TEXT }).w(px(200.)))
                     .child(spec("pid", pid, TEXT).w(px(80.)))
