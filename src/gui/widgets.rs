@@ -5,7 +5,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{AMBER, FAINT, GREEN, INK, MONO, SANS, MUTED, ON_INK, RED, alpha, c, sheet_fill, wash};
+use super::theme::{AMBER, FAINT, GREEN, INK, MONO, SANS, MUTED, ON_INK, RED, alpha, c, glass_edge, sheet_fill, wash};
 use crate::manager::Status;
 
 pub fn icon(name: IconName, size: f32, color: Rgba) -> Svg {
@@ -58,9 +58,13 @@ fn caption(text: &str) -> Div {
     mono(text.to_uppercase(), 10.5, FAINT).font_weight(FontWeight::MEDIUM)
 }
 
-/// A sheet with a faint hairline outline.
+/// A frosted glass sheet: a faint hairline outline and a brighter top edge.
 pub fn sheet() -> Div {
-    div().relative().bg(sheet_fill()).child(sketch::border(wash(0.2), 1.))
+    div()
+        .relative()
+        .bg(sheet_fill())
+        .child(sketch::border(wash(0.16), 1.))
+        .child(div().absolute().top_0().left_0().right_0().h(px(1.)).bg(glass_edge()))
 }
 
 #[derive(Clone, Copy, PartialEq)]

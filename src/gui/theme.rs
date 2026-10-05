@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 
 use gpui_kit::component::{Theme, ThemeMode};
-use gpui_kit::{App, Hsla, Rgba, px, rgb};
+use gpui_kit::{App, Background, Hsla, Rgba, linear_color_stop, linear_gradient, px, rgb};
 
 use crate::ansi;
 
@@ -44,14 +44,22 @@ pub fn wash(a: f32) -> Rgba {
     alpha(INK, a)
 }
 
-/// Solid fill for things floating above the drawing (dialogs, toasts), so
-/// nothing underneath shows through.
+/// Fill for things floating above the drawing (dialogs, toasts): glass
+/// that's nearly opaque, so what's underneath doesn't fight the text.
 pub const OVERLAY: u32 = 0x0442c4;
 
-/// A sheet's fill: a solid, slightly deeper blue that keeps the grid off
-/// the content.
-pub fn sheet_fill() -> Rgba {
-    c(OVERLAY)
+pub fn overlay_fill() -> Rgba {
+    alpha(OVERLAY, 0.94)
+}
+
+/// A sheet's fill: frosted glass, catching a little more light at the top.
+pub fn sheet_fill() -> Background {
+    linear_gradient(180., linear_color_stop(alpha(0x4f86ff, 0.5), 0.), linear_color_stop(alpha(0x0336b0, 0.66), 1.))
+}
+
+/// The bright edge along the top of a glass sheet.
+pub fn glass_edge() -> Rgba {
+    wash(0.32)
 }
 
 /// Register the bundled fonts and restyle gpui-component widgets (inputs).
