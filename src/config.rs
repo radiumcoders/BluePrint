@@ -153,13 +153,10 @@ pub fn suggest_name(dir: &Path) -> String {
     })
 }
 
-/// Pull `"name": "..."` out of package.json without a JSON dependency. Only the
-/// first top-level-looking match is used, which is good enough for a suggestion.
+/// The top-level `name` of a package.json.
 fn package_name(json: &str) -> Option<String> {
-    let idx = json.find("\"name\"")?;
-    let rest = json[idx + 6..].trim_start().strip_prefix(':')?.trim_start();
-    let rest = rest.strip_prefix('"')?;
-    Some(rest[..rest.find('"')?].to_string())
+    let json: serde_json::Value = serde_json::from_str(json).ok()?;
+    json.get("name")?.as_str().map(String::from)
 }
 
 #[cfg(test)]
@@ -192,6 +189,14 @@ mod tests {
             Some("@x/y")
         );
         assert_eq!(package_name("{}"), None);
+        // Only the top-level name counts, not one nested earlier in the file.
+        assert_eq!(
+            package_name(r#"{ "author": { "name": "me" }, "name": "app" }"#).as_deref(),
+            Some("app")
+        );
+        assert_eq!(package_name(r#"{ "name": "a\"b" }"#).as_deref(), Some("a\"b"));
+        assert_eq!(package_name(r#"{ "name": 3 }"#), None);
+        assert_eq!(package_name("not json"), None);
     }
 
     #[test]
