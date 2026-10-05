@@ -1097,6 +1097,8 @@ impl Board {
                 .child(icon(name, 18., c(if recommended { BLUE } else { MUTED })))
                 .child(
                     div()
+                        .flex_1()
+                        .min_w_0()
                         .flex()
                         .flex_col()
                         .gap_0p5()
