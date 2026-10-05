@@ -331,20 +331,9 @@ impl Board {
         );
         match result {
             Ok(project) => {
-                let name = project.name.clone();
                 match form.editing {
-                    Some(id) => {
-                        if self.m.update(id, project) {
-                            self.m.info(format!("Saved. Restart {name} to apply the changes."));
-                        } else {
-                            self.m.info("Saved");
-                        }
-                    }
-                    None => {
-                        let id = self.m.add(project);
-                        self.selected = Some(id);
-                        self.m.info(format!("Added {name}. Press start when you're ready."));
-                    }
+                    Some(id) => self.m.update(id, project),
+                    None => self.selected = Some(self.m.add(project)),
                 }
                 self.form = None;
                 window.focus(&self.focus, cx);
@@ -368,11 +357,9 @@ impl Board {
         if self.confirm_remove != Some(id) {
             self.confirm_remove = Some(id);
         } else {
-            let name = self.m.get(id).map(|e| e.project.name.clone()).unwrap_or_default();
             self.m.remove(id);
             self.confirm_remove = None;
             self.selected = self.m.entries.first().map(|e| e.id);
-            self.m.info(format!("Removed {name}"));
         }
         cx.notify();
     }

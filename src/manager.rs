@@ -167,10 +167,17 @@ impl Manager {
         self.entries.iter().filter(|e| e.run.is_some()).count()
     }
 
-    fn save(&mut self) {
+    /// Write the projects to the config file. On failure the error replaces
+    /// any message and `false` comes back, so callers only report success
+    /// that really happened.
+    fn save(&mut self) -> bool {
         self.config.projects = self.entries.iter().map(|e| e.project.clone()).collect();
-        if let Err(e) = self.config.save(&self.config_path) {
-            self.error(format!("Couldn't save the config: {e:#}"));
+        match self.config.save(&self.config_path) {
+            Ok(()) => true,
+            Err(e) => {
+                self.error(format!("Couldn't save the config: {e:#}"));
+                false
+            }
         }
     }
 
@@ -420,20 +427,23 @@ impl Manager {
     }
 
     pub fn add(&mut self, project: Project) -> Id {
+        let name = project.name.clone();
         let id = self.push_entry(project);
-        self.save();
+        if self.save() {
+            self.info(format!("Added {name}. Press start when you're ready."));
+        }
         id
     }
 
-    /// Returns true if the project is running and needs a restart to apply.
-    pub fn update(&mut self, id: Id, project: Project) -> bool {
-        let Some(i) = self.index(id) else { return false };
+    pub fn update(&mut self, id: Id, project: Project) {
+        let Some(i) = self.index(id) else { return };
         let e = &mut self.entries[i];
-        let changed = e.project != project;
+        let name = project.name.clone();
+        let needs_restart = e.project != project && e.run.is_some();
         e.project = project;
-        let needs_restart = changed && e.run.is_some();
-        self.save();
-        needs_restart
+        if self.save() {
+            self.info(if needs_restart { format!("Saved. Restart {name} to apply the changes.") } else { "Saved".into() });
+        }
     }
 
     pub fn remove(&mut self, id: Id) {
@@ -452,8 +462,10 @@ impl Manager {
                 run.kill_now();
             });
         }
-        self.entries.remove(i);
-        self.save();
+        let name = self.entries.remove(i).project.name;
+        if self.save() {
+            self.info(format!("Removed {name}"));
+        }
     }
 
     pub fn move_by(&mut self, id: Id, delta: isize) {
@@ -533,6 +545,33 @@ mod tests {
         m.shutdown();
         assert_eq!(m.running_count(), 0);
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// A failed write must not be reported as saved.
+    #[test]
+    fn failed_saves_are_reported() {
+        // The config's parent is a file, so the directory can't be created.
+        let blocker = std::env::temp_dir().join(format!("blueprint-blocker-{}", std::process::id()));
+        std::fs::write(&blocker, "").unwrap();
+        let mut m = Manager::new(Config::default(), blocker.join("config.toml"));
+        let tmp = std::env::temp_dir();
+        let project = |name: &str| Project { name: name.into(), path: tmp.clone(), port: None, command: "x".into() };
+        let is_error = |m: &Manager| matches!(&m.message, Some((msg, MsgKind::Error, _)) if msg.starts_with("Couldn't save"));
+
+        let id = m.add(project("a"));
+        assert!(is_error(&m), "{:?}", m.message.as_ref().map(|x| &x.0));
+        m.message = None;
+        m.update(id, project("b"));
+        assert!(is_error(&m));
+        m.message = None;
+        m.remove(id);
+        assert!(is_error(&m));
+        std::fs::remove_file(blocker).unwrap();
+
+        // And a successful one is.
+        let mut m = manager();
+        m.add(project("a"));
+        assert!(matches!(&m.message, Some((msg, MsgKind::Info, _)) if msg.starts_with("Added a")));
     }
 
     #[test]
