@@ -5,16 +5,26 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{AMBER, BLUE, BLUE_DEEP, FAINT, GREEN, HAND, MONO, MUTED, RED, SHEET, alpha, c, wash};
+use super::theme::{AMBER, BLUE, BLUE_DEEP, FAINT, GREEN, MONO, MUTED, RED, SHEET, alpha, c, wash};
 use crate::manager::Status;
 
 pub fn icon(name: IconName, size: f32, color: Rgba) -> Svg {
     svg().path(name.path()).size(px(size)).flex_none().text_color(color)
 }
 
-/// A hand-lettered label, like the annotations on a drawing.
-pub fn hand(text: impl Into<SharedString>, size: f32, color: u32) -> Div {
-    div().font_family(HAND).text_size(px(size)).text_color(c(color)).child(text.into())
+/// A line of text in the house face.
+pub fn label(text: impl Into<SharedString>, size: f32, color: u32) -> Div {
+    div().font_family(MONO).text_size(px(size)).text_color(c(color)).child(text.into())
+}
+
+/// A section heading.
+pub fn heading(text: impl Into<SharedString>, size: f32) -> Div {
+    label(text, size, BLUE).font_weight(FontWeight::SEMIBOLD)
+}
+
+/// A small uppercase caption, like a field name on a drawing.
+fn caption(text: &str) -> Div {
+    label(text.to_uppercase(), 10.5, FAINT).font_weight(FontWeight::MEDIUM)
 }
 
 /// A white sheet outlined in ink, its edges running past the corners.
@@ -58,8 +68,9 @@ pub fn button(
         .h(px(34.))
         .px_3p5()
         .rounded(px(3.))
-        .font_family(HAND)
-        .text_size(px(15.))
+        .font_family(MONO)
+        .font_weight(FontWeight::MEDIUM)
+        .text_size(px(13.))
         .text_color(fg)
         .bg(bg)
         .cursor_pointer()
@@ -141,7 +152,7 @@ pub fn spec(label: &'static str, value: impl Into<SharedString>, value_color: u3
         .flex_col()
         .gap_0p5()
         .min_w_0()
-        .child(hand(label, 13., MUTED))
+        .child(caption(label))
         .child(mono(value, 13., value_color).truncate())
 }
 
@@ -153,6 +164,6 @@ pub fn spec_tail(label: &'static str, value: impl Into<SharedString>, value_colo
         .flex_col()
         .gap_0p5()
         .min_w_0()
-        .child(hand(label, 13., MUTED))
+        .child(caption(label))
         .child(mono(value, 13., value_color).overflow_hidden().whitespace_nowrap().text_ellipsis_start())
 }

@@ -11,8 +11,8 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{self, BLUE, FAINT, HAND, MONO, MUTED, PAPER, RED, TEXT, alpha, c, wash};
-use super::widgets::{Kind, button, hand, icon, icon_button, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
+use super::theme::{self, BLUE, FAINT, MONO, MUTED, PAPER, RED, TEXT, alpha, c, wash};
+use super::widgets::{Kind, button, heading, icon, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
@@ -368,8 +368,8 @@ impl Board {
                 .items_center()
                 .justify_center()
                 .gap_1()
-                .child(hand("no projects yet", 20., MUTED))
-                .child(hand("add one below", 15., FAINT))
+                .child(label("no projects yet", 15., MUTED))
+                .child(label("add one below", 12.5, FAINT))
                 .into_any_element()
         } else {
             let rows: Vec<AnyElement> =
@@ -400,7 +400,7 @@ impl Board {
                     .justify_between()
                     .px_5()
                     .pt_4()
-                    .child(hand("projects", 26., BLUE))
+                    .child(heading("projects", 18.))
                     .child(mono(format!("{count:02}"), 12., FAINT).pb_1()),
             )
             .child(div().px_4().child(sketch::rule(alpha(BLUE, 0.55))))
@@ -453,7 +453,7 @@ impl Board {
                             .font_weight(FontWeight::MEDIUM)
                             .truncate(),
                     )
-                    .child(hand(detail, 13., if status == Status::Crashed { RED } else { MUTED }).truncate()),
+                    .child(label(detail, 11.5, if status == Status::Crashed { RED } else { MUTED }).truncate()),
             )
             .child(if e.is_active() {
                 icon_button(
@@ -507,7 +507,7 @@ impl Board {
                 .py_1p5()
                 .border_r_1()
                 .border_color(line)
-                .child(hand(text, 13., MUTED))
+                .child(label(text, 11.5, MUTED))
         };
 
         let title_block = div()
@@ -569,7 +569,7 @@ impl Board {
                             .px_2p5()
                             .flex_1()
                             .child(mono(if clean { "clean · no port" } else { "with :1355" }, 12., TEXT))
-                            .when(!clean, |el| el.child(div().flex_1()).child(hand("make clean", 13., BLUE))),
+                            .when(!clean, |el| el.child(div().flex_1()).child(label("make clean", 11.5, BLUE))),
                     ),
             )
             .child(
@@ -644,7 +644,7 @@ impl Board {
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(hand("pick a project to see its details", 18., FAINT));
+                .child(label("pick a project to see its details", 14., FAINT));
         };
         let id = e.id;
         let status = e.status();
@@ -710,7 +710,7 @@ impl Board {
                             .min_w_0()
                             .truncate(),
                     )
-                    .child(hand(status_text, 17., status_color(status)).flex_none())
+                    .child(label(status_text, 13., status_color(status)).flex_none())
                     .child(div().flex_1())
                     .child(icon_button(
                         "open",
@@ -811,7 +811,7 @@ impl Board {
             .gap_3()
             .px_5()
             .pt_3()
-            .child(hand("logs", 24., BLUE))
+            .child(heading("logs", 18.))
             .children(entry.map(|e| mono(e.project.name.clone(), 12., FAINT).pt_1()))
             .child(div().flex_1())
             .when(!self.follow && entry.is_some_and(|e| !e.logs.is_empty()), |el| {
@@ -862,7 +862,7 @@ impl Board {
             }
             Some(e) => {
                 let hint = if e.run.is_some() { "waiting for output…" } else { "not running · press start" };
-                div().flex_1().px_5().py_3().child(hand(hint, 17., FAINT)).into_any_element()
+                div().flex_1().px_5().py_3().child(label(hint, 13., FAINT)).into_any_element()
             }
             None => div().flex_1().into_any_element(),
         };
@@ -972,12 +972,12 @@ impl Board {
                             .border_color(line)
                             .children(rows)
                             .when(empty, |el| {
-                                el.child(div().p_3().child(hand(
+                                el.child(div().p_3().child(label(
                                     format!(
                                         "nothing matches in {} · use browse… for any folder",
                                         display_path(&self.m.config.projects_root)
                                     ),
-                                    14.,
+                                    12.,
                                     FAINT,
                                 )))
                             }),
@@ -986,15 +986,15 @@ impl Board {
             }
         };
 
-        let field = |label: &'static str, input: AnyElement, note: Option<String>, error: Option<String>| {
+        let field = |name: &'static str, input: AnyElement, note: Option<String>, error: Option<String>| {
             div()
                 .flex()
                 .flex_col()
                 .gap_1()
-                .child(hand(label, 15., MUTED))
+                .child(label(name, 12.5, MUTED))
                 .child(input)
                 .map(|el| match (error, note) {
-                    (Some(e), _) => el.child(hand(e, 14., RED)),
+                    (Some(e), _) => el.child(label(e, 12., RED)),
                     (None, Some(n)) => el.child(mono(n, 12., BLUE)),
                     (None, None) => el,
                 })
@@ -1011,7 +1011,7 @@ impl Board {
                     div()
                         .flex()
                         .items_center()
-                        .child(hand(title, 28., BLUE).flex_1())
+                        .child(heading(title, 20.).flex_1())
                         .child(icon_button(
                             "close-form",
                             IconName::X,
@@ -1026,9 +1026,9 @@ impl Board {
                         .flex()
                         .flex_col()
                         .gap_1()
-                        .child(hand("folder", 15., MUTED))
+                        .child(label("folder", 12.5, MUTED))
                         .child(folder_section)
-                        .when_some(err(Field::Folder), |el, e| el.child(hand(e, 14., RED))),
+                        .when_some(err(Field::Folder), |el, e| el.child(label(e, 12., RED))),
                 )
                 .child(field("name", div().font_family(MONO).child(Input::new(&form.name)).into_any_element(), Some(preview), err(Field::Name)))
                 .child(
@@ -1107,7 +1107,7 @@ impl Board {
                                 .flex()
                                 .items_center()
                                 .gap_2()
-                                .child(hand(title, 18., TEXT))
+                                .child(label(title, 14., TEXT).font_weight(FontWeight::SEMIBOLD))
                                 .when(recommended, |el| {
                                     el.child(
                                         mono("RECOMMENDED", 9.5, theme::SHEET)
@@ -1117,7 +1117,7 @@ impl Board {
                                     )
                                 }),
                         )
-                        .child(hand(body, 14., MUTED)),
+                        .child(label(body, 12., MUTED)),
                 )
         };
 
@@ -1132,9 +1132,9 @@ impl Board {
                         .items_center()
                         .gap_3()
                         .child(icon(IconName::SquareTerminal, 22., c(BLUE)))
-                        .child(hand("finish in the terminal window, it asks for your password", 17., TEXT)),
+                        .child(label("finish in the terminal window, it asks for your password", 13., TEXT)),
                 )
-                .child(hand("portboard starts your projects as soon as the proxy is up.", 15., MUTED))
+                .child(label("portboard starts your projects as soon as the proxy is up.", 12.5, MUTED))
                 .child(div().flex().justify_end().child(button(
                     "cancel-setup",
                     None,
@@ -1164,15 +1164,15 @@ impl Board {
                 .flex()
                 .flex_col()
                 .gap_3()
-                .child(hand(
+                .child(label(
                     format!(
                         "to serve https://name.localhost with no port, the portless proxy listens on port {port}. \
                          that needs your password once.{}",
                         stray.map(|p| format!(" the proxy on :{p} will be stopped first.")).unwrap_or_default()
                     ),
-                    15.,
+                    12.5,
                     MUTED,
-                ))
+                ).line_height(px(20.)))
                 .child(option(
                     "setup-service",
                     IconName::ShieldCheck,
@@ -1217,8 +1217,8 @@ impl Board {
                 .flex()
                 .flex_col()
                 .gap_3()
-                .child(hand(if waiting { "waiting for the proxy" } else { "one-time setup" }, 15., MUTED))
-                .child(hand("clean urls need port 443", 28., BLUE))
+                .child(label(if waiting { "waiting for the proxy" } else { "one-time setup" }, 12.5, MUTED))
+                .child(heading("clean urls need port 443", 20.))
                 .child(sketch::rule(alpha(BLUE, 0.45)))
                 .child(content),
         )
@@ -1238,7 +1238,7 @@ impl Board {
                     .py_2()
                     .shadow_md()
                     .child(div().size(px(7.)).flex_none().rounded_full().bg(c(color)))
-                    .child(hand(text.clone(), 16., TEXT)),
+                    .child(label(text.clone(), 13., TEXT)),
             ),
         )
     }
@@ -1259,7 +1259,7 @@ impl Render for Board {
             .size_full()
             .bg(c(PAPER))
             .text_color(c(TEXT))
-            .font_family(HAND)
+            .font_family(MONO)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
             .child(sketch::dots(18., 1., alpha(BLUE, 0.22)))

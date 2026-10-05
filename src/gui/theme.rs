@@ -1,5 +1,5 @@
-//! portboard's look: a blueprint. White sheets drafted in blue ink on grid
-//! paper, hand-lettered labels, a technical mono for data.
+//! portboard's look: a blueprint. White sheets drafted in blue ink on dot
+//! grid paper, set entirely in a technical mono.
 
 use std::borrow::Cow;
 
@@ -8,10 +8,8 @@ use gpui_kit::{App, Hsla, Rgba, px, rgb};
 
 use crate::ansi;
 
-/// Data: project names, URLs, ports, logs.
+/// The one typeface: clean, technical, monospaced.
 pub const MONO: &str = "IBM Plex Mono";
-/// Hand-lettered drafting font for headings, labels and buttons.
-pub const HAND: &str = "Architects Daughter";
 
 /// Drafting paper behind the sheets.
 pub const PAPER: u32 = 0xf4f7fd;
@@ -44,7 +42,6 @@ pub fn wash(a: f32) -> Rgba {
 /// Register the bundled fonts and restyle gpui-component widgets (inputs).
 pub fn install(cx: &mut App) {
     let fonts: Vec<Cow<'static, [u8]>> = vec![
-        Cow::Borrowed(include_bytes!("../../assets/fonts/ArchitectsDaughter-Regular.ttf")),
         Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-Regular.ttf")),
         Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-Medium.ttf")),
         Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-SemiBold.ttf")),
