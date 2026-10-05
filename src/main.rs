@@ -12,6 +12,8 @@ mod platform;
 mod process;
 mod shellenv;
 mod stack;
+#[cfg(test)]
+mod testkit;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

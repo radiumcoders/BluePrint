@@ -2,10 +2,11 @@
 //! server's process tree together, stopping it, and the shell its command
 //! runs in.
 //!
-//! On Unix every server gets its own process group and the guardian process
-//! signals the groups if blueprint dies. On Windows every server joins a job
-//! object that the system kills when blueprint exits, and stopping one kills
-//! its process tree.
+//! Each server's processes are a [`Tree`]. On Unix that's a process group,
+//! which the guardian process also signals if blueprint dies. On Windows it's
+//! a job object the server is spawned into (suspended until it has joined, so
+//! nothing it starts can slip out), which the system kills when blueprint
+//! exits however it exits.
 
 pub use imp::*;
 
@@ -65,6 +66,7 @@ fn expand_vars(s: &str) -> String {
 
 #[cfg(unix)]
 mod imp {
+    use std::io;
     use std::os::unix::process::CommandExt;
     use std::process::{Child, Command};
 
@@ -75,61 +77,78 @@ mod imp {
         cmd.process_group(0);
     }
 
-    /// Make sure the child's tree dies with blueprint.
-    pub fn adopt(child: &Child) {
-        guardian::watch(child.id());
+    /// A server's processes: the process group its shell leads.
+    pub struct Tree {
+        pgid: u32,
     }
 
-    /// The child's tree is gone; stop tracking it.
-    pub fn release(pid: u32) {
-        guardian::unwatch(pid);
+    /// Track the child's tree, and make sure it dies with blueprint.
+    pub fn adopt(child: &Child) -> io::Result<Tree> {
+        // Children are spawned with process_group(0), so their pgid is their pid.
+        let pgid = child.id();
+        guardian::watch(pgid);
+        Ok(Tree { pgid })
     }
 
-    /// Whether anything is left of the child's tree.
-    pub fn tree_alive(pid: u32) -> bool {
-        guardian::group_alive(pid)
+    impl Tree {
+        /// Whether any process of the tree is left.
+        pub fn alive(&self) -> bool {
+            guardian::group_alive(self.pgid)
+        }
+
+        /// Ask the tree to exit.
+        pub fn terminate(&self) {
+            self.signal(libc::SIGTERM);
+        }
+
+        /// Kill the tree outright.
+        pub fn kill(&self) {
+            self.signal(libc::SIGKILL);
+        }
+
+        fn signal(&self, sig: libc::c_int) {
+            unsafe {
+                libc::kill(-(self.pgid as libc::pid_t), sig);
+            }
+        }
     }
 
-    /// Ask the tree to exit.
-    pub fn terminate(pid: u32) {
-        signal_group(pid, libc::SIGTERM);
-    }
-
-    /// Kill the tree outright.
-    pub fn kill(pid: u32) {
-        signal_group(pid, libc::SIGKILL);
-    }
-
-    fn signal_group(pid: u32, sig: libc::c_int) {
-        // Children are spawned with process_group(0), so their pgid equals their pid.
-        unsafe {
-            libc::kill(-(pid as libc::pid_t), sig);
+    impl Drop for Tree {
+        fn drop(&mut self) {
+            guardian::unwatch(self.pgid);
         }
     }
 
     /// `command` run by `sh`, so pipes, `&&` and `$PORT` work.
-    pub fn shell(command: &str) -> Command {
+    pub fn shell(command: &str) -> io::Result<Command> {
         let mut cmd = Command::new("sh");
         cmd.args(["-c", command]);
-        cmd
+        Ok(cmd)
     }
 }
 
 #[cfg(windows)]
 mod imp {
     use std::ffi::c_void;
+    use std::io;
     use std::os::windows::io::AsRawHandle;
     use std::os::windows::process::CommandExt;
     use std::path::PathBuf;
-    use std::process::{Child, Command, Stdio};
-    use std::sync::OnceLock;
+    use std::process::{Child, Command};
 
-    use windows_sys::Win32::Foundation::HANDLE;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    };
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation, SetInformationJobObject,
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation, QueryInformationJobObject,
+        SetInformationJobObject, TerminateJobObject,
     };
-    use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
+    use windows_sys::Win32::System::Threading::{
+        CREATE_NO_WINDOW, CREATE_SUSPENDED, OpenThread, ResumeThread, THREAD_SUSPEND_RESUME,
+    };
 
     /// A command for `program`, found on PATH with any PATHEXT extension
     /// (`Command::new` alone only looks for `.exe`), run without a console
@@ -150,69 +169,145 @@ mod imp {
         })
     }
 
-    pub fn isolate(_cmd: &mut Command) {}
-
-    /// A job object that kills everything in it when blueprint exits, however
-    /// it exits. Stored as an address because handles aren't `Sync`.
-    fn job() -> Option<HANDLE> {
-        static JOB: OnceLock<usize> = OnceLock::new();
-        let job = *JOB.get_or_init(|| unsafe {
-            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-            if job.is_null() {
-                return 0;
-            }
-            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformation,
-                &info as *const _ as *const c_void,
-                size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            );
-            job as usize
-        });
-        (job != 0).then_some(job as HANDLE)
+    /// Start the child suspended: [`adopt`] resumes it once it's in its job,
+    /// so not even its first child can start outside it.
+    pub fn isolate(cmd: &mut Command) {
+        cmd.creation_flags(CREATE_NO_WINDOW | CREATE_SUSPENDED);
     }
 
-    /// Put the child (and the processes it starts) in the job.
-    pub fn adopt(child: &Child) {
-        if let Some(job) = job() {
+    /// A server's processes: a job object holding the shell and everything it
+    /// starts. Closing the last handle to it (when blueprint exits, however it
+    /// exits) kills whatever is still in it.
+    pub struct Tree {
+        job: HANDLE,
+    }
+
+    // The handle is only an identifier for the kernel object; the job APIs
+    // can be called from any thread.
+    unsafe impl Send for Tree {}
+
+    fn check(ok: i32, what: &str) -> io::Result<()> {
+        if ok == 0 {
+            let e = io::Error::last_os_error();
+            return Err(io::Error::new(e.kind(), format!("{what}: {e}")));
+        }
+        Ok(())
+    }
+
+    /// Put the suspended child in a job of its own, then let it run.
+    pub fn adopt(child: &Child) -> io::Result<Tree> {
+        let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+        if job.is_null() {
+            let e = io::Error::last_os_error();
+            return Err(io::Error::new(e.kind(), format!("couldn't create a job object: {e}")));
+        }
+        // From here on, dropping the tree closes the job.
+        let tree = Tree { job };
+        unsafe {
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            check(
+                SetInformationJobObject(
+                    job,
+                    JobObjectExtendedLimitInformation,
+                    &info as *const _ as *const c_void,
+                    size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                ),
+                "couldn't configure the job object",
+            )?;
+            check(
+                AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE),
+                "couldn't add the server to its job object",
+            )?;
+        }
+        resume(child.id())?;
+        Ok(tree)
+    }
+
+    /// Resume the main thread of a process created suspended (its only thread).
+    fn resume(pid: u32) -> io::Result<()> {
+        unsafe {
+            let snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+            if snap == INVALID_HANDLE_VALUE {
+                let e = io::Error::last_os_error();
+                return Err(io::Error::new(e.kind(), format!("couldn't list threads: {e}")));
+            }
+            let mut entry: THREADENTRY32 = std::mem::zeroed();
+            entry.dwSize = size_of::<THREADENTRY32>() as u32;
+            let mut thread = None;
+            let mut more = Thread32First(snap, &mut entry) != 0;
+            while more {
+                if entry.th32OwnerProcessID == pid {
+                    thread = Some(entry.th32ThreadID);
+                    break;
+                }
+                more = Thread32Next(snap, &mut entry) != 0;
+            }
+            CloseHandle(snap);
+            let Some(tid) = thread else {
+                return Err(io::Error::other("couldn't find the server's main thread"));
+            };
+            let handle = OpenThread(THREAD_SUSPEND_RESUME, 0, tid);
+            if handle.is_null() {
+                let e = io::Error::last_os_error();
+                return Err(io::Error::new(e.kind(), format!("couldn't open the server's main thread: {e}")));
+            }
+            let resumed = ResumeThread(handle);
+            CloseHandle(handle);
+            if resumed == u32::MAX {
+                let e = io::Error::last_os_error();
+                return Err(io::Error::new(e.kind(), format!("couldn't resume the server: {e}")));
+            }
+        }
+        Ok(())
+    }
+
+    impl Tree {
+        /// Whether any process of the tree is left.
+        pub fn alive(&self) -> bool {
             unsafe {
-                AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE);
+                let mut info: JOBOBJECT_BASIC_ACCOUNTING_INFORMATION = std::mem::zeroed();
+                let ok = QueryInformationJobObject(
+                    self.job,
+                    JobObjectBasicAccountingInformation,
+                    &mut info as *mut _ as *mut c_void,
+                    size_of::<JOBOBJECT_BASIC_ACCOUNTING_INFORMATION>() as u32,
+                    std::ptr::null_mut(),
+                );
+                // If the job can't be asked, don't wait on it forever.
+                ok != 0 && info.ActiveProcesses > 0
+            }
+        }
+
+        /// Console programs can't be asked to close politely from a windowless
+        /// parent, so stopping kills the tree.
+        pub fn terminate(&self) {
+            self.kill();
+        }
+
+        pub fn kill(&self) {
+            unsafe {
+                TerminateJobObject(self.job, 1);
             }
         }
     }
 
-    pub fn release(_pid: u32) {}
-
-    /// The job cleans up leftovers, so there's nothing to chase.
-    pub fn tree_alive(_pid: u32) -> bool {
-        false
-    }
-
-    /// Console programs can't be asked to close politely from a windowless
-    /// parent, so stopping kills the tree.
-    pub fn terminate(pid: u32) {
-        kill(pid);
-    }
-
-    pub fn kill(pid: u32) {
-        let _ = command("taskkill")
-            .args(["/PID", &pid.to_string(), "/T", "/F"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+    impl Drop for Tree {
+        fn drop(&mut self) {
+            unsafe {
+                CloseHandle(self.job);
+            }
+        }
     }
 
     /// `command` rewritten for and run by `cmd.exe`, which also finds the
     /// `.cmd` shims npm installs. Passed raw: `/s` strips the outer quotes and
     /// leaves the command exactly as written, which Rust's argument quoting
     /// wouldn't.
-    pub fn shell(command: &str) -> Command {
+    pub fn shell(command: &str) -> io::Result<Command> {
         let mut cmd = self::command("cmd");
         cmd.raw_arg(format!("/d /s /c \"{}\"", super::posix_to_cmd(command)));
-        cmd
+        Ok(cmd)
     }
 }
 

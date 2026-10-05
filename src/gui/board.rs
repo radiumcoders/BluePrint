@@ -576,15 +576,18 @@ impl Board {
         let url = e.url();
         let confirming = self.confirm_remove == Some(id);
         let (open_url, copy_url) = (url.clone().unwrap_or_default(), url.clone().unwrap_or_default());
-        let port = match (e.project.port, e.app_port.filter(|_| e.run.is_some())) {
-            (Some(p), _) => format!("{p} fixed"),
-            (None, Some(p)) => format!("{p} auto"),
+        // While it runs, show what it runs with; edits wait for a restart.
+        let shown = e.run.as_ref().map_or(&e.project, |r| &r.project);
+        let port = match (&e.run, shown.port) {
+            (Some(r), None) => format!("{} auto", r.port),
+            (_, Some(p)) => format!("{p} fixed"),
             (None, None) => "auto".into(),
         };
         // An empty command shows what it resolves to.
-        let command = match e.project.command.trim() {
-            "" => stack::dev_script_command(&e.project.path).unwrap_or_else(|| "package.json dev".into()),
-            c => c.to_string(),
+        let command = match (&e.run, shown.command.trim()) {
+            (Some(r), _) => r.command.clone(),
+            (None, "") => stack::dev_script_command(&shown.path).unwrap_or_else(|| "package.json dev".into()),
+            (None, c) => c.to_string(),
         };
         let route = match e.port() {
             Some(p) => format!("PORT={p}"),
@@ -595,6 +598,9 @@ impl Board {
         let mut status_text = status_word(status).to_string();
         if let Some(code) = e.last_exit.filter(|c| *c != 0 && e.run.is_none()) {
             status_text = format!("{status_text} · exit {code}");
+        }
+        if e.edited_while_running() {
+            status_text = format!("{status_text} · edited, restart to apply");
         }
 
         let toggle = if e.is_active() {
@@ -742,9 +748,9 @@ impl Board {
                     .gap_y_3()
                     // Keep the folder readable on narrow or scaled windows;
                     // the other specs wrap below it instead of crushing it.
-                    .child(spec_tail("folder", display_path(&e.project.path), TEXT).flex_1().min_w(px(160.)))
+                    .child(spec_tail("folder", display_path(&shown.path), TEXT).flex_1().min_w(px(160.)))
                     .child(spec("port", port, TEXT).w(px(120.)))
-                    .child(spec("command", command, if e.project.command.is_empty() { MUTED } else { TEXT }).w(px(200.)))
+                    .child(spec("command", command, if shown.command.is_empty() { MUTED } else { TEXT }).w(px(200.)))
                     .child(spec("pid", pid, TEXT).w(px(80.)))
                     .child(spec("up", up, TEXT).w(px(64.))),
             )

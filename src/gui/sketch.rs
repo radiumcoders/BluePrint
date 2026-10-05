@@ -45,7 +45,7 @@ pub fn grid(step: f32, major: usize, minor_color: Rgba, major_color: Rgba) -> im
         move |bounds, _, window, _| {
             let (x0, y0) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
             let (w, h) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
-            let color = |i: usize| if i % major == 0 { major_color } else { minor_color };
+            let color = |i: usize| if i.is_multiple_of(major) { major_color } else { minor_color };
             let mut i = 0;
             while i as f32 * step <= w {
                 vline(window, x0 + i as f32 * step, y0, y0 + h, 1., color(i));

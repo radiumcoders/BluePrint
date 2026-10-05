@@ -164,7 +164,7 @@ pub fn icon_button(
 pub fn status_color(s: Status) -> u32 {
     match s {
         Status::Running => GREEN,
-        Status::Starting | Status::Stopping => AMBER,
+        Status::Starting | Status::Stopping | Status::Unresponsive => AMBER,
         Status::Crashed => RED,
         Status::Stopped => FAINT,
     }
@@ -174,6 +174,7 @@ pub fn status_word(s: Status) -> &'static str {
     match s {
         Status::Running => "running",
         Status::Starting => "starting",
+        Status::Unresponsive => "not responding",
         Status::Stopping => "stopping",
         Status::Crashed => "crashed",
         Status::Stopped => "stopped",
