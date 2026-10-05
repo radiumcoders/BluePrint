@@ -38,10 +38,12 @@ pub fn corner_tag(text: impl Into<SharedString>) -> Div {
 /// The quiet version of [`corner_tag`] for supporting sheets: outlined ink
 /// instead of solid, so only one tag on the board shouts.
 pub fn corner_label(text: impl Into<SharedString>) -> Div {
+    quiet_tag(text).absolute().top(px(-8.)).left(px(14.))
+}
+
+/// An outlined [`tag`], for labels that annotate rather than lead.
+pub fn quiet_tag(text: impl Into<SharedString>) -> Div {
     div()
-        .absolute()
-        .top(px(-8.))
-        .left(px(14.))
         .h(px(16.))
         .px_1p5()
         .flex()
@@ -64,7 +66,7 @@ pub fn placeholder(text: impl Into<SharedString>) -> Div {
         .justify_center()
         .child(sketch::border(hairline(), 1.))
         .child(sketch::cross(hairline()))
-        .child(tag(text))
+        .child(quiet_tag(text))
 }
 
 /// A section heading.
