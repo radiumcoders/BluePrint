@@ -1003,6 +1003,7 @@ impl Board {
 
         modal(
             sheet()
+                .bg(c(theme::OVERLAY))
                 .w(px(660.))
                 .p_6()
                 .flex()
@@ -1213,6 +1214,7 @@ impl Board {
 
         modal(
             sheet()
+                .bg(c(theme::OVERLAY))
                 .w(px(580.))
                 .p_6()
                 .flex()
@@ -1231,6 +1233,7 @@ impl Board {
         Some(
             div().absolute().bottom_6().left_0().right_0().flex().justify_center().child(
                 sheet()
+                .bg(c(theme::OVERLAY))
                     .flex()
                     .items_center()
                     .gap_2p5()

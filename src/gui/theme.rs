@@ -40,6 +40,10 @@ pub fn wash(a: f32) -> Rgba {
     alpha(INK, a)
 }
 
+/// Solid fill for things floating above the drawing (dialogs, toasts), so
+/// nothing underneath shows through.
+pub const OVERLAY: u32 = 0x0442c4;
+
 /// A sheet's fill: a deeper blue that lets the grid show through faintly.
 pub fn sheet_fill() -> Rgba {
     alpha(0x0236a8, 0.5)
