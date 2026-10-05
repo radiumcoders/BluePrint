@@ -8,10 +8,10 @@ use gpui_kit::{App, Hsla, Rgba, px, rgb};
 
 use crate::ansi;
 
-/// Board text: names, URLs, ports, status words.
-pub const MONO: &str = "Space Mono";
-/// Everything else.
-pub const SANS: &str = "Space Grotesk";
+/// Data: project names, URLs, ports, logs.
+pub const MONO: &str = "IBM Plex Mono";
+/// Hand-lettered drafting font for headings, labels and buttons.
+pub const SANS: &str = "Architects Daughter";
 
 pub const INK: u32 = 0x0b0c0e;
 pub const PANEL: u32 = 0x111318;
@@ -40,11 +40,11 @@ pub fn alpha(hex: u32, a: f32) -> Rgba {
 /// Register the bundled fonts and restyle gpui-component widgets (inputs).
 pub fn install(cx: &mut App) {
     let fonts: Vec<Cow<'static, [u8]>> = vec![
-        Cow::Borrowed(include_bytes!("../../assets/fonts/SpaceMono-Regular.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/SpaceMono-Bold.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/SpaceGrotesk-Regular.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/SpaceGrotesk-Medium.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/SpaceGrotesk-Bold.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/ArchitectsDaughter-Regular.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-Regular.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-Medium.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-SemiBold.ttf")),
+        Cow::Borrowed(include_bytes!("../../assets/fonts/IBMPlexMono-Bold.ttf")),
     ];
     if let Err(e) = cx.text_system().add_fonts(fonts) {
         eprintln!("portboard: couldn't load bundled fonts: {e}");
