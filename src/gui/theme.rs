@@ -1,5 +1,5 @@
-//! portboard's look: a blueprint. White ink on a blue field with a fine
-//! grid, set in Geist with Geist Mono for data.
+//! The look: white ink on a blue field with a fine grid, set in Geist
+//! with Geist Mono for data.
 
 use std::borrow::Cow;
 
@@ -80,7 +80,7 @@ pub fn install(cx: &mut App) {
         Cow::Borrowed(include_bytes!("../../assets/fonts/GeistMono-Bold.ttf")),
     ];
     if let Err(e) = cx.text_system().add_fonts(fonts) {
-        eprintln!("portboard: couldn't load bundled fonts: {e}");
+        eprintln!("blueprint: couldn't load bundled fonts: {e}");
     }
 
     Theme::change(ThemeMode::Dark, None, cx);

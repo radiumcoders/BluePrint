@@ -696,6 +696,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "blueprint"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dirs 7.0.0",
+ "gpui-kit",
+ "libc",
+ "serde",
+ "shell-words",
+ "toml 1.1.6+spec-1.1.0",
+]
+
+[[package]]
 name = "borsh"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5017,19 +5030,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10ab3eb7f3becc3a1cbc4f2c6f20267996cfc1a6467a873763411b136a122715"
 dependencies = [
  "portable-atomic",
-]
-
-[[package]]
-name = "portboard"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dirs 7.0.0",
- "gpui-kit",
- "libc",
- "serde",
- "shell-words",
- "toml 1.1.6+spec-1.1.0",
 ]
 
 [[package]]

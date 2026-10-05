@@ -56,12 +56,12 @@ impl Default for Config {
 
 impl Config {
     pub fn path() -> PathBuf {
-        if let Some(p) = std::env::var_os("PORTBOARD_CONFIG") {
+        if let Some(p) = std::env::var_os("BLUEPRINT_CONFIG") {
             return PathBuf::from(p);
         }
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("portboard")
+            .join("blueprint")
             .join("config.toml")
     }
 
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn roundtrip() {
-        let dir = std::env::temp_dir().join(format!("portboard-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("blueprint-test-{}", std::process::id()));
         let path = dir.join("config.toml");
         let cfg = Config {
             proxy_port: 1400,

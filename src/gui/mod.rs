@@ -1,4 +1,4 @@
-//! The portboard window.
+//! The blueprint window.
 
 mod board;
 mod sketch;
@@ -21,9 +21,9 @@ pub fn run(manager: Manager) {
         let options = WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_min_size: Some(size(px(900.), px(560.))),
-            titlebar: Some(TitlebarOptions { title: Some("portboard".into()), ..Default::default() }),
+            titlebar: Some(TitlebarOptions { title: Some("blueprint".into()), ..Default::default() }),
             // Overridable so a second instance (or a test run) can get its own window rules.
-            app_id: Some(std::env::var("PORTBOARD_APP_ID").unwrap_or_else(|_| "portboard".into())),
+            app_id: Some(std::env::var("BLUEPRINT_APP_ID").unwrap_or_else(|_| "blueprint".into())),
             ..Default::default()
         };
         let Ok((_, view)) = gpui_kit::open_window(options, cx, |window, cx| {
@@ -34,7 +34,7 @@ pub fn run(manager: Manager) {
             })
         })
         else {
-            eprintln!("portboard: couldn't open a window");
+            eprintln!("blueprint: couldn't open a window");
             cx.quit();
             return;
         };

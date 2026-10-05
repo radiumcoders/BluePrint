@@ -607,7 +607,7 @@ impl Manager {
             SetupKind::Service => format!("portless service install -p {port}"),
             SetupKind::Once => format!("portless proxy start -p {port}"),
         });
-        match open_terminal("portboard: one-time proxy setup", &steps) {
+        match open_terminal("blueprint: one-time proxy setup", &steps) {
             Ok(()) => self.setup = Setup::Waiting(Instant::now()),
             Err(e) => {
                 self.setup = Setup::None;
@@ -650,7 +650,7 @@ impl Manager {
         }
         if self.proxy_needs_root() {
             let steps = [format!("portless proxy stop -p {}", self.config.proxy_port)];
-            if let Err(e) = open_terminal("portboard: stop the proxy", &steps) {
+            if let Err(e) = open_terminal("blueprint: stop the proxy", &steps) {
                 self.error(format!("Couldn't open a terminal: {e}"));
             }
             return;
@@ -721,7 +721,7 @@ mod tests {
     use super::*;
 
     fn manager() -> Manager {
-        let dir = std::env::temp_dir().join(format!("portboard-mgr-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("blueprint-mgr-{}", std::process::id()));
         Manager::new(Config::default(), dir.join("config.toml"))
     }
 

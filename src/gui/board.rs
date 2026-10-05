@@ -73,10 +73,10 @@ impl Board {
         }
     }
 
-    /// Open a dialog at startup (`PORTBOARD_OPEN=add|edit`), so screenshots
+    /// Open a dialog at startup (`BLUEPRINT_OPEN=add|edit`), so screenshots
     /// of a window that can't take keyboard focus can still show it.
     pub fn open_from_env(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        match std::env::var("PORTBOARD_OPEN").as_deref() {
+        match std::env::var("BLUEPRINT_OPEN").as_deref() {
             Ok("add") => self.open_form(None, window, cx),
             Ok("edit") => self.open_form(self.selected, window, cx),
             _ => {}
@@ -1140,7 +1140,7 @@ impl Board {
                         .child(icon(IconName::SquareTerminal, 22., c(INK)))
                         .child(label("finish in the terminal window, it asks for your password", 13., TEXT)),
                 )
-                .child(label("portboard starts your projects as soon as the proxy is up.", 12.5, MUTED))
+                .child(label("blueprint starts your projects as soon as the proxy is up.", 12.5, MUTED))
                 .child(div().flex().justify_end().child(button(
                     "cancel-setup",
                     None,
@@ -1306,7 +1306,7 @@ impl Board {
             .items_center()
             .justify_between()
             .px(px(RULER + GUTTER))
-            .child(label("sheet 01 · portboard · dev servers", 11.5, MUTED))
+            .child(label("sheet 01 · blueprint · dev servers", 11.5, MUTED))
             .child(label(
                 format!(
                     "rev {} · {:02} projects · {} running",

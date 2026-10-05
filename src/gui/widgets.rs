@@ -1,4 +1,4 @@
-//! Small building blocks in portboard's blueprint style.
+//! Small building blocks for the drawing.
 
 use gpui_kit::assets::IconName;
 use gpui_kit::prelude::FluentBuilder as _;

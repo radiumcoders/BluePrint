@@ -1,4 +1,4 @@
-# portboard
+# blueprint
 
 A desktop app for running many dev servers at once through
 [portless](https://portless.sh). Each project gets a stable, named URL
@@ -19,7 +19,7 @@ main action are solid ink, so the eye always has one place to land.
 
 ```sh
 cargo install --path .
-portboard
+blueprint
 ```
 
 ## Using it
@@ -54,7 +54,7 @@ Closing the window stops every server.
 ## Clean URLs (one-time setup)
 
 `https://name.localhost` with no port needs the portless proxy on port 443, which needs root
-once. The first time you start a project, portboard asks how to set it up:
+once. The first time you start a project, blueprint asks how to set it up:
 
 - **install as a service** (recommended): opens a terminal that runs `portless service install`.
   You enter your password once. The proxy then starts on boot and the HTTPS certificate is trusted.
@@ -68,7 +68,7 @@ If you skipped the service and your browser shows certificate warnings, run `por
 
 ## Config
 
-The config is stored at `~/.config/portboard/config.toml`. Set `PORTBOARD_CONFIG` to use a different file.
+The config is stored at `~/.config/blueprint/config.toml`. Set `BLUEPRINT_CONFIG` to use a different file.
 
 ```toml
 proxy_port = 443               # 1355 = no root needed, URLs get :1355
@@ -86,10 +86,10 @@ command = "pnpm dev"           # optional
 - Each project runs as `portless run --name <name> [--app-port N]` (the dev script) or
   `portless --name <name> [--app-port N] -- <command>`. portless injects `PORT` and `--port`,
   so Vite, Next and others bind to the right port.
-- When no proxy is running, portboard starts it once and queues projects until it's up.
+- When no proxy is running, blueprint starts it once and queues projects until it's up.
   This avoids several portless processes racing to start it.
 - **No orphaned servers**: each server runs in its own process group. A small guardian process
-  (`portboard --guardian`) watches a pipe from portboard. If portboard exits for any reason,
+  (`blueprint --guardian`) watches a pipe from blueprint. If blueprint exits for any reason,
   including a crash or `kill -9`, the guardian sends SIGTERM to every server and then SIGKILL
   after 4 seconds.
 

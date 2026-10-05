@@ -15,7 +15,7 @@ use crate::config::Config;
 use crate::manager::Manager;
 
 /// Set by SIGHUP/SIGTERM/SIGINT (e.g. Ctrl+C in the terminal that launched
-/// portboard) so the window can quit and stop servers cleanly.
+/// blueprint) so the window can quit and stop servers cleanly.
 static TERMINATED: AtomicBool = AtomicBool::new(false);
 
 pub fn terminated() -> bool {
@@ -49,15 +49,15 @@ fn main() -> Result<()> {
     }
     if args.iter().any(|a| a == "-h" || a == "--help") {
         println!(
-            "portboard {}\nRun many dev servers at once through portless, each at https://<name>.localhost.\n\n\
-             Config: {}\n(override with PORTBOARD_CONFIG=/path/to/config.toml)",
+            "blueprint {}\nRun many dev servers at once through portless, each at https://<name>.localhost.\n\n\
+             Config: {}\n(override with BLUEPRINT_CONFIG=/path/to/config.toml)",
             env!("CARGO_PKG_VERSION"),
             Config::path().display()
         );
         return Ok(());
     }
     if args.iter().any(|a| a == "-V" || a == "--version") {
-        println!("portboard {}", env!("CARGO_PKG_VERSION"));
+        println!("blueprint {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
 

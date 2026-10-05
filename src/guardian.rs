@@ -1,8 +1,8 @@
-//! Cleanup watchdog so dev servers never outlive portboard.
+//! Cleanup watchdog so dev servers never outlive blueprint.
 //!
-//! portboard re-executes itself as `portboard --guardian` with a pipe on stdin
+//! blueprint re-executes itself as `blueprint --guardian` with a pipe on stdin
 //! and reports each server's process group as `+<pgid>` / `-<pgid>` lines.
-//! When portboard exits for any reason (normal quit, terminal closed, crash,
+//! When blueprint exits for any reason (normal quit, terminal closed, crash,
 //! SIGKILL) the pipe closes, and the guardian SIGTERMs every group it still
 //! knows about, then SIGKILLs whatever survives the grace period.
 
@@ -29,7 +29,7 @@ pub fn spawn() {
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        // Own process group, so terminal signals aimed at portboard miss it.
+        // Own process group, so terminal signals aimed at blueprint miss it.
         .process_group(0)
         .spawn();
     if let Ok(mut child) = child {
@@ -59,7 +59,7 @@ pub fn group_alive(pgid: u32) -> bool {
     unsafe { libc::kill(-(pgid as libc::pid_t), 0) == 0 }
 }
 
-/// Entry point for `portboard --guardian`.
+/// Entry point for `blueprint --guardian`.
 pub fn run() -> ! {
     for sig in [libc::SIGHUP, libc::SIGINT, libc::SIGTERM] {
         unsafe {
@@ -83,7 +83,7 @@ pub fn run() -> ! {
         }
     }
 
-    // portboard is gone.
+    // blueprint is gone.
     let kill = |sig| {
         for &g in &groups {
             unsafe {

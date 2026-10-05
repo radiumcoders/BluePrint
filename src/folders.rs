@@ -40,7 +40,7 @@ pub fn list(root: &Path) -> Vec<Folder> {
     v
 }
 
-/// Case-insensitive subsequence match ("prt" matches "portboard").
+/// Case-insensitive subsequence match ("bpt" matches "blueprint").
 pub fn fuzzy(needle: &str, hay: &str) -> bool {
     let mut hay = hay.chars().flat_map(char::to_lowercase);
     needle.chars().flat_map(char::to_lowercase).all(|n| hay.any(|h| h == n))
@@ -52,15 +52,15 @@ mod tests {
 
     #[test]
     fn fuzzy_match() {
-        assert!(fuzzy("prt", "portboard"));
-        assert!(fuzzy("PB", "portboard"));
-        assert!(!fuzzy("xyz", "portboard"));
+        assert!(fuzzy("bpt", "blueprint"));
+        assert!(fuzzy("BP", "blueprint"));
+        assert!(!fuzzy("xyz", "blueprint"));
         assert!(fuzzy("", "anything"));
     }
 
     #[test]
     fn lists_and_tags() {
-        let root = std::env::temp_dir().join(format!("portboard-folders-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("blueprint-folders-{}", std::process::id()));
         fs::create_dir_all(root.join("beta")).unwrap();
         fs::create_dir_all(root.join("Alpha")).unwrap();
         fs::create_dir_all(root.join(".hidden")).unwrap();
