@@ -48,6 +48,9 @@ pub struct Entry {
     probed: Option<Instant>,
     slow_warned: bool,
     pub logs: VecDeque<String>,
+    /// The line number of `logs[0]`, counting every line ever logged, so a
+    /// line keeps its number as older ones are dropped or cleared.
+    pub log_start: u64,
     log_bytes: usize,
     /// Bumped whenever `logs` changes, so views can tell cheaply.
     pub log_rev: u64,
@@ -101,18 +104,20 @@ impl Entry {
         self.run.as_ref().is_some_and(|r| r.project != self.project)
     }
 
-    fn log(&mut self, line: impl Into<String>) {
+    pub(crate) fn log(&mut self, line: impl Into<String>) {
         let line = line.into();
         self.log_bytes += line.len();
         self.logs.push_back(line);
         while self.logs.len() > MAX_LOG_LINES || self.log_bytes > MAX_LOG_BYTES {
             let Some(old) = self.logs.pop_front() else { break };
             self.log_bytes -= old.len();
+            self.log_start += 1;
         }
         self.log_rev += 1;
     }
 
     pub fn clear_logs(&mut self) {
+        self.log_start += self.logs.len() as u64;
         self.logs.clear();
         self.log_bytes = 0;
         self.log_rev += 1;
@@ -191,6 +196,7 @@ impl Manager {
             probed: None,
             slow_warned: false,
             logs: VecDeque::new(),
+            log_start: 0,
             log_bytes: 0,
             log_rev: 0,
         });
@@ -745,6 +751,9 @@ mod tests {
         let huge = e.logs.iter().find(|l| l.starts_with("xxxx")).expect("the huge line");
         assert!(huge.len() <= process::MAX_LINE + 16 && huge.ends_with("[cut]"));
         assert!(e.logs.iter().any(|l| l.starts_with("line 19999 ")));
+        // Dropped lines are counted, so line numbers stay stable.
+        assert!(e.log_start > 0);
+        assert!(e.logs.iter().position(|l| l.starts_with("line 19999 ")).unwrap() as u64 + e.log_start > 20_000);
     }
 
     /// Invalid UTF-8 and broken escapes come through as lines and render

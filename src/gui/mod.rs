@@ -1,6 +1,7 @@
 //! The blueprint window.
 
 mod board;
+mod logs;
 mod sketch;
 mod theme;
 mod widgets;

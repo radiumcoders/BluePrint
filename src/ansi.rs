@@ -99,7 +99,7 @@ fn clean_into(out: &mut String, text: &str) {
     }
 }
 
-#[cfg(test)]
+/// The text of a line without its escapes.
 pub fn strip(s: &str) -> String {
     parse(s).text
 }
