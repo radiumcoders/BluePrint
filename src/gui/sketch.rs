@@ -1,5 +1,5 @@
 //! Drafting strokes for the blueprint look: dead-straight construction lines
-//! that run past their corners, a dot grid, and straight hatching.
+//! that run past their corners, a blueprint grid, and straight hatching.
 
 use gpui_kit::*;
 
@@ -39,23 +39,23 @@ pub fn rule(color: Rgba) -> Div {
     div().h(px(1.)).w_full().flex_none().bg(color)
 }
 
-/// A dot grid, like engineering paper.
-pub fn dots(step: f32, radius: f32, color: Rgba) -> impl IntoElement {
+/// Blueprint grid: hairlines every `step`, a heavier line every `major` steps.
+pub fn grid(step: f32, major: usize, minor_color: Rgba, major_color: Rgba) -> impl IntoElement {
     canvas(
         |_, _, _| (),
         move |bounds, _, window, _| {
             let (x0, y0) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
             let (w, h) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
-            let d = radius * 2.;
-            let mut y = step / 2.;
-            while y < h {
-                let mut x = step / 2.;
-                while x < w {
-                    let b = Bounds::new(pt(x0 + x - radius, y0 + y - radius), size(px(d), px(d)));
-                    window.paint_quad(fill(b, color).corner_radii(px(radius)));
-                    x += step;
-                }
-                y += step;
+            let color = |i: usize| if i % major == 0 { major_color } else { minor_color };
+            let mut i = 0;
+            while i as f32 * step <= w {
+                vline(window, x0 + i as f32 * step, y0, y0 + h, 1., color(i));
+                i += 1;
+            }
+            let mut j = 0;
+            while j as f32 * step <= h {
+                hline(window, x0, x0 + w, y0 + j as f32 * step, 1., color(j));
+                j += 1;
             }
         },
     )

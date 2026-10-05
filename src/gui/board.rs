@@ -1262,7 +1262,7 @@ impl Render for Board {
             .font_family(MONO)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
-            .child(sketch::dots(18., 1., alpha(INK, 0.22)))
+            .child(sketch::grid(10., 5, wash(0.07), wash(0.15)))
             .child(
                 div()
                     .absolute()
