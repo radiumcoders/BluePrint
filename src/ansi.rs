@@ -75,7 +75,9 @@ fn tokenize(s: &str) -> Vec<Token<'_>> {
                 }
                 i = j;
             }
-            Some(_) => i += 2,
+            // A two-byte escape like `ESC 7`. Skip the character after ESC
+            // whole: it may be more than one byte.
+            Some(_) => i += 1 + s[i + 1..].chars().next().map_or(1, char::len_utf8),
             None => i += 1,
         }
         text_start = i;
@@ -204,6 +206,22 @@ mod tests {
     fn background_params_are_skipped() {
         let s = parse("\x1b[48;5;12;31mx");
         assert_eq!(s.runs[0].1.fg, Some(Color::Basic(1)));
+    }
+
+    #[test]
+    fn escape_before_multibyte() {
+        assert_eq!(strip("a\x1béb"), "ab");
+        assert_eq!(strip("\x1b😀ok"), "ok");
+        assert_eq!(strip("\x1b[émx"), "x");
+        assert_eq!(strip("\x1b]é"), "");
+        // Fuzz every split of a mixed line: parsing must never panic.
+        let line = "\x1b[1;3é1m✓ ok\x1b]8;;é\x07\x1bé\x1b";
+        for i in 0..line.len() {
+            if line.is_char_boundary(i) {
+                parse(&line[..i]);
+                parse(&line[i..]);
+            }
+        }
     }
 
     #[test]
