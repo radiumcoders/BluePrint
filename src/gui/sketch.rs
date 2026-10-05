@@ -1,5 +1,5 @@
 //! Drafting strokes for the blueprint look: dead-straight outlines, a
-//! blueprint grid, and straight hatching.
+//! blueprint grid, rulers and dimension lines.
 
 use gpui_kit::*;
 
@@ -144,61 +144,4 @@ pub fn ruler(vertical: bool, color: Rgba) -> impl IntoElement {
         },
     )
     .size_full()
-}
-
-/// Segments of 45° hatching across a `w`×`h` box, `spacing` apart, clipped to it.
-fn hatch_segments(w: f32, h: f32, spacing: f32) -> Vec<((f32, f32), (f32, f32))> {
-    // Lines satisfy x - y = k; walk k across the box.
-    let mut out = Vec::new();
-    let mut k = -h + spacing / 2.;
-    while k < w {
-        let a = if k >= 0. { (k, 0.) } else { (0., -k) };
-        let b = if k + h <= w { (k + h, h) } else { (w, w - k) };
-        if b.0 - a.0 > 0.5 {
-            out.push((a, b));
-        }
-        k += spacing;
-    }
-    out
-}
-
-/// Straight diagonal hatching filling its parent, like pencil shading.
-pub fn hatch(color: Rgba, spacing: f32) -> impl IntoElement {
-    canvas(
-        |_, _, _| (),
-        move |bounds, _, window, _| {
-            let (x0, y0) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
-            let segments = hatch_segments(f32::from(bounds.size.width), f32::from(bounds.size.height), spacing);
-            let mut path = PathBuilder::stroke(px(1.));
-            for (a, b) in segments {
-                path.move_to(pt(x0 + a.0, y0 + a.1));
-                path.line_to(pt(x0 + b.0, y0 + b.1));
-            }
-            if let Ok(path) = path.build() {
-                window.paint_path(path, color);
-            }
-        },
-    )
-    .absolute()
-    .inset_0()
-}
-
-#[cfg(test)]
-mod tests {
-    // Not `super::*`: that would pull in gpui's `test` macro and shadow `#[test]`.
-    use super::hatch_segments;
-
-    #[test]
-    fn hatching_stays_inside_the_box() {
-        let (w, h) = (200., 50.);
-        let segs = hatch_segments(w, h, 6.);
-        assert!(segs.len() > 30);
-        for ((ax, ay), (bx, by)) in segs {
-            for (x, y) in [(ax, ay), (bx, by)] {
-                assert!((-0.01..=w + 0.01).contains(&x) && (-0.01..=h + 0.01).contains(&y));
-            }
-            // 45°: equal run and rise.
-            assert!(((bx - ax) - (by - ay)).abs() < 0.01);
-        }
-    }
 }

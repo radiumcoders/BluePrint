@@ -43,8 +43,8 @@ pub fn placeholder(text: impl Into<SharedString>) -> Div {
         .flex()
         .items_center()
         .justify_center()
-        .child(sketch::border(wash(0.35), 1.))
-        .child(sketch::cross(wash(0.22)))
+        .child(sketch::border(wash(0.18), 1.))
+        .child(sketch::cross(wash(0.1)))
         .child(tag(text))
 }
 
@@ -58,9 +58,9 @@ fn caption(text: &str) -> Div {
     mono(text.to_uppercase(), 10.5, FAINT).font_weight(FontWeight::MEDIUM)
 }
 
-/// A sheet outlined in ink.
+/// A sheet with a faint hairline outline.
 pub fn sheet() -> Div {
-    div().relative().bg(sheet_fill()).child(sketch::border(wash(0.75), 1.))
+    div().relative().bg(sheet_fill()).child(sketch::border(wash(0.2), 1.))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -82,10 +82,10 @@ pub fn button(
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
     let (fg, bg, hover_bg) = match kind {
-        Kind::Primary => (c(ON_INK), c(INK), c(0x0444b8)),
+        Kind::Primary => (c(ON_INK), c(INK), c(0xdbe7ff)),
         Kind::Plain => (c(INK), wash(0.), wash(0.1)),
         Kind::Ghost => (c(MUTED), wash(0.), wash(0.08)),
-        Kind::Danger => (c(ON_INK), c(0xe5483c), c(0xc93a2f)),
+        Kind::Danger => (c(INK), c(0xe5483c), c(0xc93a2f)),
     };
     let hover_fg = if kind == Kind::Ghost { c(INK) } else { fg };
     div()
@@ -107,7 +107,7 @@ pub fn button(
         .cursor_pointer()
         .hover(move |el| el.bg(hover_bg).text_color(hover_fg))
         .on_click(on_click)
-        .when(kind == Kind::Plain, |el| el.child(sketch::border(wash(0.75), 1.)))
+        .when(kind == Kind::Plain, |el| el.child(sketch::border(wash(0.35), 1.)))
         .when_some(name, |el, name| el.child(icon(name, 15., fg)))
         .child(label.into())
 }

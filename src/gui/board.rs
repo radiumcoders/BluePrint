@@ -11,7 +11,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{self, CHALK_MUTED, FAINT, FIELD, INK, MONO, MUTED, RED, SANS, TEXT, alpha, c, chalk, wash};
+use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, SANS, TEXT, alpha, c, wash};
 use super::widgets::{Kind, button, corner_tag, heading, icon, placeholder, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
@@ -415,8 +415,7 @@ impl Board {
             .cursor_pointer()
             .map(|el| {
                 if selected {
-                    el.child(sketch::hatch(wash(0.2), 5.))
-                        .child(sketch::border(c(INK), 1.))
+                    el.bg(wash(0.1)).child(sketch::border(wash(0.4), 1.))
                 } else {
                     el.hover(|el| el.bg(wash(0.05)))
                 }
@@ -481,7 +480,7 @@ impl Board {
         };
         let clean = m.proxy_needs_root();
         let any_active = m.entries.iter().any(Entry::is_active);
-        let line = alpha(INK, 0.3);
+        let line = alpha(INK, 0.16);
 
         let cell_label = |text: &'static str| {
             div()
@@ -786,7 +785,7 @@ impl Board {
                     .relative()
                     .h(px(16.))
                     .my_1()
-                    .child(sketch::dimension(wash(0.55)))
+                    .child(sketch::dimension(wash(0.35)))
                     .child(div().absolute().inset_0().flex().items_center().justify_center().child(ink_tag(route))),
             )
             .child(
@@ -883,7 +882,7 @@ impl Board {
         let err = |field: Field| form.error.as_ref().filter(|(f, _)| *f == field).map(|(_, m)| m.clone());
         let name_value = form.name.read(cx).value().to_string();
         let preview = self.m.url_for(if name_value.trim().is_empty() { "name" } else { name_value.trim() });
-        let line = alpha(INK, 0.3);
+        let line = alpha(INK, 0.16);
 
         let folder_section: AnyElement = match &form.folder {
             Some(path) => div()
@@ -1266,7 +1265,7 @@ impl Render for Board {
             .font_family(SANS)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
-            .child(sketch::grid(10., 5, chalk(0.07), chalk(0.15)))
+            .child(sketch::grid(10., 5, wash(0.07), wash(0.15)))
             .child(
                 div()
                     .absolute()
@@ -1274,13 +1273,13 @@ impl Render for Board {
                     .flex()
                     .flex_col()
                     .child(self.render_sheet_header())
-                    .child(div().h(px(RULER)).pl(px(RULER)).child(sketch::ruler(false, chalk(0.5))))
+                    .child(div().h(px(RULER)).pl(px(RULER)).child(sketch::ruler(false, wash(0.5))))
                     .child(
                         div()
                             .flex_1()
                             .min_h_0()
                             .flex()
-                            .child(div().w(px(RULER)).h_full().child(sketch::ruler(true, chalk(0.5))))
+                            .child(div().w(px(RULER)).h_full().child(sketch::ruler(true, wash(0.5))))
                             .child(self.render_sheets(cx)),
                     ),
             )
@@ -1303,7 +1302,7 @@ impl Board {
             .items_center()
             .justify_between()
             .px(px(RULER + GUTTER))
-            .child(label("sheet 01 · portboard · dev servers", 11.5, CHALK_MUTED))
+            .child(label("sheet 01 · portboard · dev servers", 11.5, MUTED))
             .child(label(
                 format!(
                     "rev {} · {:02} projects · {} running · {proxy}",
@@ -1312,7 +1311,7 @@ impl Board {
                     running
                 ),
                 11.5,
-                CHALK_MUTED,
+                MUTED,
             ))
     }
 
