@@ -8,6 +8,7 @@
 
 use std::collections::BTreeSet;
 use std::io::{BufRead, Write};
+use std::path::PathBuf;
 use std::os::unix::process::CommandExt;
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::Mutex;
@@ -19,12 +20,36 @@ pub const FLAG: &str = "--guardian";
 
 static PIPE: Mutex<Option<ChildStdin>> = Mutex::new(None);
 
+/// Set on a guardian started from a temporary copy, which it then deletes.
+const TEMP_COPY: &str = "BLUEPRINT_GUARDIAN_COPY";
+
+/// The program to run as the guardian. Inside an AppImage the executable
+/// lives on a mount that disappears when blueprint exits, just when the
+/// guardian has work to do, so it runs from a copy on disk instead.
+fn guardian_exe() -> Option<(PathBuf, bool)> {
+    let exe = std::env::current_exe().ok()?;
+    if std::env::var_os("APPIMAGE").is_none() {
+        return Some((exe, false));
+    }
+    let dir = dirs::cache_dir().unwrap_or_else(std::env::temp_dir).join("blueprint");
+    let copy = dir.join(format!("guardian-{}", std::process::id()));
+    match std::fs::create_dir_all(&dir).and_then(|_| std::fs::copy(&exe, &copy)) {
+        Ok(_) => Some((copy, true)),
+        // Better a guardian that may not survive the unmount than none.
+        Err(_) => Some((exe, false)),
+    }
+}
+
 /// Start the guardian. Failure is non-fatal: normal quit still stops servers.
 pub fn spawn() {
-    let Ok(exe) = std::env::current_exe() else {
+    let Some((exe, copied)) = guardian_exe() else {
         return;
     };
-    let child = Command::new(exe)
+    let mut cmd = Command::new(&exe);
+    if copied {
+        cmd.env(TEMP_COPY, &exe);
+    }
+    let child = cmd
         .arg(FLAG)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
@@ -61,6 +86,11 @@ pub fn group_alive(pgid: u32) -> bool {
 
 /// Entry point for `blueprint --guardian`.
 pub fn run() -> ! {
+    // Delete our temporary copy right away; the running program keeps it
+    // alive until it exits.
+    if let Some(copy) = std::env::var_os(TEMP_COPY) {
+        let _ = std::fs::remove_file(copy);
+    }
     for sig in [libc::SIGHUP, libc::SIGINT, libc::SIGTERM] {
         unsafe {
             libc::signal(sig, libc::SIG_IGN);
