@@ -1357,9 +1357,11 @@ fn modal(content: impl IntoElement) -> Div {
         .flex()
         .items_center()
         .justify_center()
+        .p_4()
         .bg(alpha(0x02296f, 0.62))
         .occlude()
-        .child(content)
+        // Short windows scroll the dialog instead of cutting it off.
+        .child(div().id("modal").max_h_full().overflow_y_scroll().child(content))
 }
 
 fn tag(name: &'static str) -> Div {
