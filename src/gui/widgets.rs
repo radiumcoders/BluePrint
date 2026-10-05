@@ -1,11 +1,12 @@
 //! Small building blocks for the drawing.
 
 use gpui_kit::assets::IconName;
+use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{AMBER, FAINT, GREEN, INK, MONO, SANS, MUTED, ON_INK, RED, alpha, c, hairline, line, sheet_fill, wash};
+use super::theme::{AMBER, FAINT, GREEN, INK, MONO, SANS, MUTED, ON_INK, RED, WELL, alpha, c, hairline, line, sheet_fill, wash};
 use crate::manager::Status;
 
 pub fn icon(name: IconName, size: f32, color: Rgba) -> Svg {
@@ -75,7 +76,7 @@ pub fn heading(text: impl Into<SharedString>, size: f32) -> Div {
 }
 
 /// A small uppercase caption, like a field name on a drawing.
-fn caption(text: &str) -> Div {
+pub fn caption(text: &str) -> Div {
     mono(text.to_uppercase(), 10.5, FAINT).font_weight(FontWeight::MEDIUM)
 }
 
@@ -223,4 +224,22 @@ pub fn spec_tail(label: &'static str, value: impl Into<SharedString>, value_colo
         .min_w_0()
         .child(caption(label))
         .child(mono(value, 13., value_color).overflow_hidden().whitespace_nowrap().text_ellipsis_start())
+}
+
+/// A text input drawn as a drawing's field: a recessed well with a 1px
+/// outline that turns solid ink while it has focus. Values are set in mono.
+pub fn text_field(state: &Entity<InputState>, window: &Window, cx: &App) -> Div {
+    let focused = state.read(cx).focus_handle(cx).is_focused(window);
+    div()
+        .relative()
+        // Same height as buttons, so a field and its button line up. The
+        // input pads itself, so the well adds none.
+        .h(px(34.))
+        .flex()
+        .items_center()
+        .bg(alpha(WELL, 0.45))
+        .font_family(MONO)
+        .text_size(px(13.))
+        .child(sketch::border(if focused { c(INK) } else { line() }, 1.))
+        .child(Input::new(state).appearance(false))
 }

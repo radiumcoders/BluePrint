@@ -57,6 +57,9 @@ pub fn line() -> Rgba {
     wash(0.4)
 }
 
+/// The deep blue that wells (text fields) sink into.
+pub const WELL: u32 = 0x02296f;
+
 /// Solid fill for things floating above the drawing (dialogs, toasts), so
 /// nothing underneath shows through.
 pub const OVERLAY: u32 = 0x0442c4;
@@ -93,7 +96,8 @@ pub fn install(cx: &mut App) {
     t.background = Hsla::from(c(0x0340b8));
     t.caret = Hsla::from(c(INK));
     t.selection = Hsla::from(wash(0.3));
-    t.muted_foreground = Hsla::from(c(FAINT));
+    // Placeholders: quieter than values but still readable on blue.
+    t.muted_foreground = Hsla::from(c(0x93b4f3));
     t.border = Hsla::from(wash(0.45));
     t.input = Hsla::from(wash(0.45));
     t.ring = Hsla::from(c(INK));

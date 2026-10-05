@@ -6,13 +6,13 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use gpui_kit::assets::IconName;
-use gpui_kit::component::input::{Input, InputEvent, InputState};
+use gpui_kit::component::input::{InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
 use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, SANS, TEXT, alpha, c, hairline, line, wash};
-use super::widgets::{Kind, button, corner_label, corner_tag, heading, lead_sheet, icon, placeholder, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
+use super::widgets::{Kind, button, corner_label, corner_tag, heading, lead_sheet, icon, placeholder, tag as ink_tag, icon_button, caption, label, lamp, text_field, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
@@ -883,7 +883,7 @@ impl Board {
             .child(tools)
     }
 
-    fn render_form(&self, form: &ProjectForm, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_form(&self, form: &ProjectForm, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let title = if form.editing.is_some() { "edit project" } else { "new project" };
         let err = |field: Field| form.error.as_ref().filter(|(f, _)| *f == field).map(|(_, m)| m.clone());
         let name_value = form.name.read(cx).value().to_string();
@@ -958,7 +958,7 @@ impl Board {
                         div()
                             .flex()
                             .gap_2()
-                            .child(div().flex_1().font_family(MONO).child(Input::new(&form.filter)))
+                            .child(text_field(&form.filter, window, cx).flex_1())
                             .child(button(
                                 "browse",
                                 Some(IconName::FolderSearch),
@@ -996,7 +996,7 @@ impl Board {
                 .flex()
                 .flex_col()
                 .gap_1()
-                .child(label(name, 12.5, MUTED))
+                .child(caption(name))
                 .child(input)
                 .map(|el| match (error, note) {
                     (Some(e), _) => el.child(label(e, 12., RED)),
@@ -1032,24 +1032,24 @@ impl Board {
                         .flex()
                         .flex_col()
                         .gap_1()
-                        .child(label("folder", 12.5, MUTED))
+                        .child(caption("folder"))
                         .child(folder_section)
                         .when_some(err(Field::Folder), |el, e| el.child(label(e, 12., RED))),
                 )
-                .child(field("name", div().font_family(MONO).child(Input::new(&form.name)).into_any_element(), Some(preview), err(Field::Name)))
+                .child(field("name", text_field(&form.name, window, cx).into_any_element(), Some(preview), err(Field::Name)))
                 .child(
                     div()
                         .flex()
                         .gap_4()
                         .child(div().w(px(150.)).child(field(
                             "port",
-                            div().font_family(MONO).child(Input::new(&form.port)).into_any_element(),
+                            text_field(&form.port, window, cx).into_any_element(),
                             None,
                             err(Field::Port),
                         )))
                         .child(div().flex_1().child(field(
                             "command",
-                            div().font_family(MONO).child(Input::new(&form.command)).into_any_element(),
+                            text_field(&form.command, window, cx).into_any_element(),
                             None,
                             err(Field::Command),
                         ))),
@@ -1260,7 +1260,7 @@ impl Render for Board {
         if self.form.is_none() && !self.focus.contains_focused(window, cx) {
             window.focus(&self.focus, cx);
         }
-        let form = self.form.as_ref().map(|f| self.render_form(f, cx).into_any_element());
+        let form = self.form.as_ref().map(|f| self.render_form(f, window, cx).into_any_element());
         let setup = (self.m.setup != Setup::None).then(|| self.render_setup(cx).into_any_element());
         div()
             .relative()
