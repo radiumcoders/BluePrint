@@ -11,7 +11,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, SANS, TEXT, alpha, c, wash};
+use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, SANS, TEXT, alpha, c, hairline, line, wash};
 use super::widgets::{Kind, button, corner_tag, heading, icon, placeholder, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
@@ -415,7 +415,7 @@ impl Board {
             .cursor_pointer()
             .map(|el| {
                 if selected {
-                    el.bg(wash(0.1)).child(sketch::border(wash(0.4), 1.))
+                    el.bg(wash(0.1)).child(sketch::border(line(), 1.))
                 } else {
                     el.hover(|el| el.bg(wash(0.05)))
                 }
@@ -480,7 +480,6 @@ impl Board {
         };
         let clean = m.proxy_needs_root();
         let any_active = m.entries.iter().any(Entry::is_active);
-        let line = alpha(INK, 0.16);
 
         let cell_label = |text: &'static str| {
             div()
@@ -489,7 +488,7 @@ impl Board {
                 .px_2p5()
                 .py_1p5()
                 .border_r_1()
-                .border_color(line)
+                .border_color(hairline())
                 .child(label(text, 11.5, MUTED))
         };
 
@@ -497,7 +496,7 @@ impl Board {
             .flex()
             .flex_col()
             .border_1()
-            .border_color(line)
+            .border_color(hairline())
             .child(
                 div()
                     .id("tb-proxy")
@@ -529,7 +528,7 @@ impl Board {
                     .flex()
                     .items_center()
                     .border_t_1()
-                    .border_color(line)
+                    .border_color(hairline())
                     .when(!clean, |el| {
                         el.cursor_pointer()
                             .hover(|el| el.bg(wash(0.05)))
@@ -560,7 +559,7 @@ impl Board {
                     .flex()
                     .items_center()
                     .border_t_1()
-                    .border_color(line)
+                    .border_color(hairline())
                     .child(cell_label("sheet"))
                     .child(div().px_2p5().child(mono(
                         format!("portboard v{} · 1/1", env!("CARGO_PKG_VERSION")),
@@ -785,7 +784,7 @@ impl Board {
                     .relative()
                     .h(px(16.))
                     .my_1()
-                    .child(sketch::dimension(wash(0.35)))
+                    .child(sketch::dimension(line()))
                     .child(div().absolute().inset_0().flex().items_center().justify_center().child(ink_tag(route))),
             )
             .child(
@@ -882,7 +881,6 @@ impl Board {
         let err = |field: Field| form.error.as_ref().filter(|(f, _)| *f == field).map(|(_, m)| m.clone());
         let name_value = form.name.read(cx).value().to_string();
         let preview = self.m.url_for(if name_value.trim().is_empty() { "name" } else { name_value.trim() });
-        let line = alpha(INK, 0.16);
 
         let folder_section: AnyElement = match &form.folder {
             Some(path) => div()
@@ -892,7 +890,7 @@ impl Board {
                 .h(px(42.))
                 .px_3()
                 .border_1()
-                .border_color(line)
+                .border_color(hairline())
                 .bg(wash(0.04))
                 .child(icon(IconName::FolderOpen, 16., c(INK)))
                 .child(
@@ -969,7 +967,7 @@ impl Board {
                             .overflow_y_scroll()
                             .py_1()
                             .border_1()
-                            .border_color(line)
+                            .border_color(hairline())
                             .children(rows)
                             .when(empty, |el| {
                                 el.child(div().p_3().child(label(
@@ -1021,7 +1019,7 @@ impl Board {
                             cx.listener(|this, _, window, cx| this.close_form(window, cx)),
                         )),
                 )
-                .child(sketch::rule(alpha(INK, 0.45)))
+                .child(sketch::rule(line()))
                 .child(
                     div()
                         .flex()
@@ -1094,7 +1092,7 @@ impl Board {
                 .cursor_pointer()
                 .hover(|el| el.bg(wash(0.05)))
                 .on_click(move |ev, window, cx| on_click(ev, window, cx))
-                .child(sketch::border(alpha(INK, if recommended { 1. } else { 0.35 }), 1.))
+                .child(sketch::border(if recommended { c(INK) } else { line() }, 1.))
                 .child(icon(name, 18., c(if recommended { INK } else { MUTED })))
                 .child(
                     div()
@@ -1221,7 +1219,7 @@ impl Board {
                 .gap_3()
                 .child(label(if waiting { "waiting for the proxy" } else { "one-time setup" }, 12.5, MUTED))
                 .child(heading("clean urls need port 443", 20.))
-                .child(sketch::rule(alpha(INK, 0.45)))
+                .child(sketch::rule(line()))
                 .child(content),
         )
     }
@@ -1273,13 +1271,13 @@ impl Render for Board {
                     .flex()
                     .flex_col()
                     .child(self.render_sheet_header())
-                    .child(div().h(px(RULER)).pl(px(RULER)).child(sketch::ruler(false, wash(0.5))))
+                    .child(div().h(px(RULER)).pl(px(RULER)).child(sketch::ruler(false, line())))
                     .child(
                         div()
                             .flex_1()
                             .min_h_0()
                             .flex()
-                            .child(div().w(px(RULER)).h_full().child(sketch::ruler(true, wash(0.5))))
+                            .child(div().w(px(RULER)).h_full().child(sketch::ruler(true, line())))
                             .child(self.render_sheets(cx)),
                     ),
             )
@@ -1359,7 +1357,7 @@ fn modal(content: impl IntoElement) -> Div {
 }
 
 fn tag(name: &'static str) -> Div {
-    mono(name, 10., INK).flex_none().px_1p5().border_1().border_color(alpha(INK, 0.4))
+    mono(name, 10., INK).flex_none().px_1p5().border_1().border_color(line())
 }
 
 fn log_line(raw: &str) -> AnyElement {

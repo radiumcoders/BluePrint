@@ -5,7 +5,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{AMBER, FAINT, GREEN, INK, MONO, SANS, MUTED, ON_INK, RED, alpha, c, sheet_fill, wash};
+use super::theme::{AMBER, FAINT, GREEN, INK, MONO, SANS, MUTED, ON_INK, RED, alpha, c, hairline, line, sheet_fill, wash};
 use crate::manager::Status;
 
 pub fn icon(name: IconName, size: f32, color: Rgba) -> Svg {
@@ -43,8 +43,8 @@ pub fn placeholder(text: impl Into<SharedString>) -> Div {
         .flex()
         .items_center()
         .justify_center()
-        .child(sketch::border(wash(0.18), 1.))
-        .child(sketch::cross(wash(0.1)))
+        .child(sketch::border(hairline(), 1.))
+        .child(sketch::cross(hairline()))
         .child(tag(text))
 }
 
@@ -60,7 +60,7 @@ fn caption(text: &str) -> Div {
 
 /// A sheet with a faint hairline outline.
 pub fn sheet() -> Div {
-    div().relative().bg(sheet_fill()).child(sketch::border(wash(0.2), 1.))
+    div().relative().bg(sheet_fill()).child(sketch::border(hairline(), 1.))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -107,7 +107,7 @@ pub fn button(
         .cursor_pointer()
         .hover(move |el| el.bg(hover_bg).text_color(hover_fg))
         .on_click(on_click)
-        .when(kind == Kind::Plain, |el| el.child(sketch::border(wash(0.35), 1.)))
+        .when(kind == Kind::Plain, |el| el.child(sketch::border(line(), 1.)))
         .when_some(name, |el, name| el.child(icon(name, 15., fg)))
         .child(label.into())
 }

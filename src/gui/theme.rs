@@ -42,6 +42,21 @@ pub fn wash(a: f32) -> Rgba {
     alpha(INK, a)
 }
 
+/// Stroke weights. Every line is 1px; only its strength varies, in three
+/// steps, so the drawing reads as one system:
+/// - [`hairline`]: structure that should recede (sheet outlines, table cells,
+///   empty frames);
+/// - [`line`]: things you read or touch (buttons, selection, dimensions, rules,
+///   rulers);
+/// - solid [`INK`]: the one thing on a surface that should lead.
+pub fn hairline() -> Rgba {
+    wash(0.16)
+}
+
+pub fn line() -> Rgba {
+    wash(0.4)
+}
+
 /// Solid fill for things floating above the drawing (dialogs, toasts), so
 /// nothing underneath shows through.
 pub const OVERLAY: u32 = 0x0442c4;
