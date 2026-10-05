@@ -123,7 +123,7 @@ impl Board {
         cx.notify();
     }
 
-    fn on_key(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_key(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         if self.form.is_some() || self.m.setup != Setup::None {
             if event.keystroke.key == "escape" {
                 self.form = None;
@@ -136,7 +136,37 @@ impl Board {
         }
         let ids: Vec<Id> = self.m.entries.iter().map(|e| e.id).collect();
         let pos = self.selected.and_then(|id| ids.iter().position(|&i| i == id));
+        let mods = &event.keystroke.modifiers;
+        if mods.control || mods.platform {
+            return;
+        }
+        if mods.alt {
+            let delta = match event.keystroke.key.as_str() {
+                "up" => -1,
+                "down" => 1,
+                _ => return,
+            };
+            if let Some(id) = self.selected {
+                self.m.move_by(id, delta);
+                cx.notify();
+            }
+            cx.stop_propagation();
+            return;
+        }
+        let sel = self.selected;
         match event.keystroke.key.as_str() {
+            "n" => self.open_form(None, window, cx),
+            "e" if sel.is_some() => self.open_form(sel, window, cx),
+            "r" if sel.is_some() => {
+                self.m.restart(sel.unwrap_or_default());
+                cx.notify();
+            }
+            "o" => {
+                if let Some(e) = sel.and_then(|id| self.m.get(id)) {
+                    cx.open_url(&self.m.expected_url(e));
+                }
+            }
+            "delete" if sel.is_some() => self.remove(sel.unwrap_or_default(), cx),
             "down" if !ids.is_empty() => {
                 let next = pos.map_or(0, |p| (p + 1).min(ids.len() - 1));
                 self.select(ids[next], cx);
@@ -628,7 +658,7 @@ impl Board {
                     SharedString::from(format!("stop-{id}")),
                     IconName::Square,
                     c(RED),
-                    "Stop",
+                    "Stop (Enter)",
                     cx.listener(move |this, _, _, cx| {
                         this.m.stop(id);
                         cx.stop_propagation();
@@ -640,7 +670,7 @@ impl Board {
                     SharedString::from(format!("start-{id}")),
                     IconName::Play,
                     c(AMBER),
-                    "Start",
+                    "Start (Enter)",
                     cx.listener(move |this, _, _, cx| {
                         this.m.start(id);
                         this.select(id, cx);
@@ -698,7 +728,7 @@ impl Board {
                 "open",
                 IconName::ExternalLink,
                 c(MUTED),
-                "Open in browser",
+                "Open in browser (O)",
                 cx.listener(move |this, _, _, cx| {
                     if let Some(e) = this.m.get(id) {
                         cx.open_url(&this.m.expected_url(e));
@@ -720,7 +750,7 @@ impl Board {
                 "restart",
                 IconName::RotateCw,
                 c(MUTED),
-                "Restart",
+                "Restart (R)",
                 cx.listener(move |this, _, _, cx| {
                     this.m.restart(id);
                     cx.notify();
@@ -730,7 +760,7 @@ impl Board {
                 "edit",
                 IconName::Pencil,
                 c(MUTED),
-                "Edit",
+                "Edit (E)",
                 cx.listener(move |this, _, window, cx| this.open_form(Some(id), window, cx)),
             ))
             .child(icon_button(
@@ -759,7 +789,7 @@ impl Board {
                     "remove",
                     IconName::Trash,
                     c(MUTED),
-                    "Remove from portboard",
+                    "Remove (Delete)",
                     cx.listener(move |this, _, _, cx| this.remove(id, cx)),
                 )
                 .into_any_element()
