@@ -5,7 +5,7 @@ A desktop app for running many dev servers at once through
 (`https://shop.localhost`) instead of a port number.
 
 Built with Rust and [GPUI](https://www.gpui.rs) (through `gpui-kit`), drawn like a blueprint:
-solid blue panels on a `#0552e1` field with a fine white grid, set in Geist and Geist Mono.
+solid blue panels on a `#0552e1` field with a fine white grid, set entirely in Geist Mono.
 Lines come in three weights (hairline, line, solid ink), and only the details sheet and the
 main action are solid ink, so the eye always has one place to land.
 
@@ -102,4 +102,4 @@ command = "pnpm dev"           # optional
 
 ## Fonts
 
-[Geist and Geist Mono](https://github.com/vercel/geist-font) are bundled under the SIL Open Font License. See `assets/fonts/`.
+[Geist Mono](https://github.com/vercel/geist-font) is bundled under the SIL Open Font License. See `assets/fonts/`.

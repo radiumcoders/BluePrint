@@ -6,16 +6,16 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{AMBER, FAINT, GREEN, INK, MONO, SANS, MUTED, ON_INK, RED, WELL, alpha, c, hairline, line, sheet_fill, wash};
+use super::theme::{AMBER, FAINT, GREEN, INK, MONO, MUTED, ON_INK, RED, WELL, alpha, c, hairline, line, sheet_fill, wash};
 use crate::manager::Status;
 
 pub fn icon(name: IconName, size: f32, color: Rgba) -> Svg {
     svg().path(name.path()).size(px(size)).flex_none().text_color(color)
 }
 
-/// A line of text in the interface face.
+/// A line of interface text.
 pub fn label(text: impl Into<SharedString>, size: f32, color: u32) -> Div {
-    div().font_family(SANS).text_size(px(size)).text_color(c(color)).child(text.into())
+    div().font_family(MONO).text_size(px(size)).text_color(c(color)).child(text.into())
 }
 
 /// A small white tag with blue text, like the labels on a drawing.
@@ -126,7 +126,7 @@ pub fn button(
         .h(px(34.))
         .px_3p5()
         .rounded(px(3.))
-        .font_family(SANS)
+        .font_family(MONO)
         .font_weight(FontWeight::MEDIUM)
         .text_size(px(13.))
         .text_color(fg)

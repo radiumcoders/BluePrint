@@ -8,9 +8,7 @@ use gpui_kit::{App, Hsla, Rgba, px, rgb};
 
 use crate::ansi;
 
-/// The interface face.
-pub const SANS: &str = "Geist";
-/// The data face: URLs, ports, paths, logs, form values and tags.
+/// The one typeface, for interface and data alike.
 pub const MONO: &str = "Geist Mono";
 
 /// The blueprint field everything is drawn on.
@@ -73,10 +71,6 @@ pub fn sheet_fill() -> Rgba {
 /// Register the bundled fonts and restyle gpui-component widgets (inputs).
 pub fn install(cx: &mut App) {
     let fonts: Vec<Cow<'static, [u8]>> = vec![
-        Cow::Borrowed(include_bytes!("../../assets/fonts/Geist-Regular.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/Geist-Medium.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/Geist-SemiBold.ttf")),
-        Cow::Borrowed(include_bytes!("../../assets/fonts/Geist-Bold.ttf")),
         Cow::Borrowed(include_bytes!("../../assets/fonts/GeistMono-Regular.ttf")),
         Cow::Borrowed(include_bytes!("../../assets/fonts/GeistMono-Medium.ttf")),
         Cow::Borrowed(include_bytes!("../../assets/fonts/GeistMono-SemiBold.ttf")),
@@ -88,7 +82,7 @@ pub fn install(cx: &mut App) {
 
     Theme::change(ThemeMode::Dark, None, cx);
     let t = Theme::global_mut(cx);
-    t.font_family = SANS.into();
+    t.font_family = MONO.into();
     t.mono_font_family = MONO.into();
     t.font_size = px(13.5);
     t.radius = px(0.);
