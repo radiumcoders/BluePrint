@@ -1,0 +1,70 @@
+mod ansi;
+mod config;
+mod folders;
+mod guardian;
+mod gui;
+mod manager;
+mod process;
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+
+use anyhow::Result;
+
+use crate::config::Config;
+use crate::manager::Manager;
+
+/// Set by SIGHUP/SIGTERM/SIGINT (e.g. Ctrl+C in the terminal that launched
+/// portboard) so the window can quit and stop servers cleanly.
+static TERMINATED: AtomicBool = AtomicBool::new(false);
+
+pub fn terminated() -> bool {
+    TERMINATED.load(Ordering::SeqCst)
+}
+
+extern "C" fn on_signal(_: libc::c_int) {
+    TERMINATED.store(true, Ordering::SeqCst);
+}
+
+fn install_signal_handlers() {
+    for sig in [libc::SIGHUP, libc::SIGTERM, libc::SIGINT] {
+        unsafe {
+            libc::signal(sig, on_signal as *const () as libc::sighandler_t);
+        }
+    }
+    // If a clean quit stalls, exit anyway; the guardian stops the servers.
+    std::thread::spawn(|| {
+        while !terminated() {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        std::thread::sleep(process::STOP_GRACE + Duration::from_secs(2));
+        std::process::exit(130);
+    });
+}
+
+fn main() -> Result<()> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some(guardian::FLAG) {
+        guardian::run();
+    }
+    if args.iter().any(|a| a == "-h" || a == "--help") {
+        println!(
+            "portboard {}\nRun many dev servers at once through portless, each at https://<name>.localhost.\n\n\
+             Config: {}\n(override with PORTBOARD_CONFIG=/path/to/config.toml)",
+            env!("CARGO_PKG_VERSION"),
+            Config::path().display()
+        );
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "-V" || a == "--version") {
+        println!("portboard {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    let path = Config::path();
+    let config = Config::load(&path)?;
+    guardian::spawn();
+    install_signal_handlers();
+    gui::run(Manager::new(config, path));
+    Ok(())
+}
