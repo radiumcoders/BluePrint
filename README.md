@@ -86,6 +86,13 @@ command = "pnpm dev"           # optional
 - Each project runs as `portless run --name <name> [--app-port N]` (the dev script) or
   `portless --name <name> [--app-port N] -- <command>`. portless injects `PORT` and `--port`,
   so Vite, Next and others bind to the right port.
+- Not just Node: picking a folder fills in a start command for Rust (`cargo run`, Trunk,
+  Dioxus, Leptos, Zola), Go (`go run .`, Air, Hugo), Python (Django, FastAPI, Flask,
+  Streamlit, with uv or Poetry), Ruby (Rails, Rack), PHP (Laravel, `php -S`), Phoenix,
+  Deno and static folders. Other servers get their port in `$PORT`; commands that use
+  `$PORT` run through `sh`. A plain `cargo run` or `go run .` app must read `PORT` itself.
+- Started from an app launcher, blueprint imports your login shell's `PATH` so tools
+  installed through mise, cargo, bun or go are found.
 - When no proxy is running, blueprint starts it once and queues projects until it's up.
   This avoids several portless processes racing to start it.
 - **No orphaned servers**: each server runs in its own process group. A small guardian process
