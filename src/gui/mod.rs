@@ -21,7 +21,8 @@ pub fn run(manager: Manager) {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             window_min_size: Some(size(px(900.), px(560.))),
             titlebar: Some(TitlebarOptions { title: Some("portboard".into()), ..Default::default() }),
-            app_id: Some("portboard".into()),
+            // Overridable so a second instance (or a test run) can get its own window rules.
+            app_id: Some(std::env::var("PORTBOARD_APP_ID").unwrap_or_else(|_| "portboard".into())),
             ..Default::default()
         };
         let Ok((_, view)) = gpui_kit::open_window(options, cx, |window, cx| cx.new(|cx| Board::new(manager, window, cx)))
