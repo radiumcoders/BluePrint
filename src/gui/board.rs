@@ -1379,7 +1379,9 @@ fn fmt_duration(d: Duration) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // Not `super::*`: that would pull in gpui's `test` macro and shadow `#[test]`.
+    use super::fmt_duration;
+    use std::time::Duration;
 
     #[test]
     fn durations() {

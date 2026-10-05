@@ -195,7 +195,8 @@ pub fn ring(seed: u64, color: Rgba, width: f32) -> impl IntoElement {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // Not `super::*`: that would pull in gpui's `test` macro and shadow `#[test]`.
+    use super::{Rng, seed};
 
     #[test]
     fn rng_is_deterministic_and_bounded() {
