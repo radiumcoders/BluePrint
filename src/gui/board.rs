@@ -548,7 +548,10 @@ impl Board {
                     el.hover(|el| el.bg(c(PANEL)))
                 }
             })
-            .on_click(cx.listener(move |this, _, _, cx| this.select(id, cx)))
+            .on_click(cx.listener(move |this, _, window, cx| {
+                window.focus(&this.focus, cx);
+                this.select(id, cx);
+            }))
             .child(
                 div()
                     .w(px(COL_STATUS))
@@ -1261,7 +1264,12 @@ impl Board {
 }
 
 impl Render for Board {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Keyboard shortcuts need the board focused; claim focus whenever
+        // nothing else (like a dialog input) has it.
+        if window.focused(cx).is_none() {
+            window.focus(&self.focus, cx);
+        }
         let form = self.form.as_ref().map(|f| self.render_form(f, cx).into_any_element());
         let setup = (self.m.setup != Setup::None).then(|| self.render_setup(cx).into_any_element());
         div()
