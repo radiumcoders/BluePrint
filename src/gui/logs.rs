@@ -12,6 +12,7 @@ use super::board::Board;
 use super::theme::{self, FAINT, INK, MONO, MUTED, TEXT, c};
 use super::widgets::{Kind, button, corner_label, icon_button, label, placeholder, sheet, text_field};
 use crate::ansi;
+use crate::config::display_path;
 use crate::manager::{Entry, Id, MAX_LOG_LINES};
 
 /// Which retained lines the console shows, by line number (see
@@ -273,6 +274,57 @@ impl LogView {
             .child(corner_label(tag))
             .child(toolbar)
             .child(body)
+    }
+}
+
+impl Board {
+    pub(super) fn selected_entry(&self) -> Option<&Entry> {
+        self.selected.and_then(|id| self.m.get(id))
+    }
+
+    pub(super) fn render_log_line(&self, ix: usize) -> AnyElement {
+        self.logs.render_line(self.selected_entry(), ix)
+    }
+
+    pub(super) fn copy_logs(&mut self, cx: &mut Context<Self>) {
+        let Some(e) = self.selected_entry() else { return };
+        let text = self.logs.index.plain_text(e);
+        let n = self.logs.index.lines.len();
+        cx.write_to_clipboard(ClipboardItem::new_string(text));
+        self.m.info(format!("Copied {n} log lines"));
+        cx.notify();
+    }
+
+    /// Save the lines shown to a file the user picks.
+    pub(super) fn save_logs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(e) = self.selected_entry() else { return };
+        let text = self.logs.index.plain_text(e);
+        let dir = e.project.path.clone();
+        let rx = cx.prompt_for_new_path(&dir, Some(&format!("{}-logs.txt", e.project.name)));
+        cx.spawn_in(window, async move |this, cx| {
+            let result = match rx.await {
+                Ok(Ok(Some(path))) => Some(std::fs::write(&path, text).map(|_| path).map_err(|e| e.to_string())),
+                Ok(Err(e)) => Some(Err(format!("couldn't open the save dialog: {e}"))),
+                _ => None,
+            };
+            if let Some(result) = result {
+                let _ = this.update(cx, |this, cx| {
+                    match result {
+                        Ok(path) => this.m.info(format!("Saved logs to {}", display_path(&path))),
+                        Err(e) => this.m.error(format!("Couldn't save the logs: {e}")),
+                    }
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
+    pub(super) fn clear_logs(&mut self, cx: &mut Context<Self>) {
+        if let Some(i) = self.selected.and_then(|id| self.m.index(id)) {
+            self.m.entries[i].clear_logs();
+        }
+        cx.notify();
     }
 }
 

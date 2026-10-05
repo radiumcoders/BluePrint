@@ -243,3 +243,27 @@ pub fn text_field(state: &Entity<InputState>, window: &Window, cx: &App) -> Div 
         .child(sketch::border(if focused { c(INK) } else { line() }, 1.))
         .child(Input::new(state).appearance(false))
 }
+
+/// An uptime, short: `5s`, `2m`, `1h02`.
+pub fn fmt_duration(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    match s {
+        0..60 => format!("{s}s"),
+        60..3600 => format!("{}m", s / 60),
+        _ => format!("{}h{:02}", s / 3600, (s % 3600) / 60),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Not `super::*`: that would pull in gpui's `test` macro and shadow `#[test]`.
+    use super::fmt_duration;
+    use std::time::Duration;
+
+    #[test]
+    fn durations() {
+        assert_eq!(fmt_duration(Duration::from_secs(5)), "5s");
+        assert_eq!(fmt_duration(Duration::from_secs(125)), "2m");
+        assert_eq!(fmt_duration(Duration::from_secs(3720)), "1h02");
+    }
+}
