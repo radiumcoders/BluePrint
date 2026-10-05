@@ -576,9 +576,14 @@ impl Manager {
     // Proxy
 
     /// Ports below 1024 (443 for plain `https://name.localhost`) need root.
+    /// Whether the config asks for portless URLs without a port (443 or 80).
+    pub fn wants_clean_urls(&self) -> bool {
+        self.config.proxy_port < 1024
+    }
+
     pub fn proxy_needs_root(&self) -> bool {
         // Windows lets anyone listen on low ports.
-        cfg!(unix) && self.config.proxy_port < 1024
+        cfg!(unix) && self.wants_clean_urls()
     }
 
     /// Port of a running proxy that isn't on the configured port.
@@ -590,7 +595,7 @@ impl Manager {
     /// unprivileged config, but when the config asks for clean URLs (port 443)
     /// a leftover `:1355` proxy has to be replaced first.
     pub fn proxy_ready(&self) -> bool {
-        self.proxy.running && !(self.proxy_needs_root() && self.stray_proxy_port().is_some())
+        self.proxy.running && !(self.wants_clean_urls() && self.stray_proxy_port().is_some())
     }
 
     fn request_proxy_start(&mut self) {
@@ -603,7 +608,10 @@ impl Manager {
         }
         self.proxy_busy = true;
         self.info(format!("Starting the proxy on :{}", self.config.proxy_port));
-        process::proxy_command(true, self.config.proxy_port, self.tx.clone());
+        // A proxy on another port has to go first (only reachable here when
+        // no root is needed, i.e. on Windows).
+        let replace = self.stray_proxy_port().is_some();
+        process::proxy_command(true, replace, self.config.proxy_port, self.tx.clone());
     }
 
     /// Open a terminal that runs the root setup; `tick` notices the proxy.
@@ -667,7 +675,7 @@ impl Manager {
         }
         self.proxy_busy = true;
         self.info("Stopping the proxy");
-        process::proxy_command(false, self.config.proxy_port, self.tx.clone());
+        process::proxy_command(false, false, self.config.proxy_port, self.tx.clone());
     }
 }
 

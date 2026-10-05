@@ -501,7 +501,7 @@ impl Board {
         } else {
             (FAINT, format!("off · :{}", m.config.proxy_port))
         };
-        let clean = m.proxy_needs_root();
+        let clean = m.wants_clean_urls();
         let any_active = m.entries.iter().any(Entry::is_active);
         let any_idle = m.entries.iter().any(|e| !e.is_active());
         // Adding leads only on an empty board; otherwise the selected

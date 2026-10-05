@@ -262,9 +262,18 @@ pub fn portless_installed() -> bool {
         .is_ok_and(|s| s.success())
 }
 
-/// Run `portless proxy start|stop` off the UI thread.
-pub fn proxy_command(start: bool, port: u16, tx: Sender<Event>) {
+/// Run `portless proxy start|stop` off the UI thread. `replace` stops any
+/// running proxy before starting.
+pub fn proxy_command(start: bool, replace: bool, port: u16, tx: Sender<Event>) {
     thread::spawn(move || {
+        if start && replace {
+            let _ = platform::command("portless")
+                .args(["proxy", "stop"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
         let mut cmd = platform::command("portless");
         cmd.arg("proxy");
         if start {
