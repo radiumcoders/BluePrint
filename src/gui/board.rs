@@ -1260,7 +1260,7 @@ impl Render for Board {
         div()
             .relative()
             .size_full()
-            .bg(alpha(FIELD, theme::FIELD_OPACITY))
+            .bg(c(FIELD))
             .text_color(c(TEXT))
             .font_family(SANS)
             .track_focus(&self.focus)

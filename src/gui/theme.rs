@@ -15,8 +15,6 @@ pub const MONO: &str = "Geist Mono";
 
 /// The blueprint field everything is drawn on.
 pub const FIELD: u32 = 0x0552e1;
-/// How much of the field covers the (blurred) desktop behind the window.
-pub const FIELD_OPACITY: f32 = 0.6;
 /// The ink: every line, heading and link is drawn in it.
 pub const INK: u32 = 0xffffff;
 /// Blue text on white ink (tags, primary buttons).
