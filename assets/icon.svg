@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs><clipPath id="r"><rect width="256" height="256" rx="44"/></clipPath></defs>
+  <g clip-path="url(#r)">
+    <rect width="256" height="256" fill="#0552e1"/>
+    <path d="M16 0V256M0 16H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M32 0V256M0 32H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M48 0V256M0 48H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M64 0V256M0 64H256" stroke="#fff" stroke-opacity="0.3" stroke-width="2"/>
+    <path d="M80 0V256M0 80H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M96 0V256M0 96H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M112 0V256M0 112H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M128 0V256M0 128H256" stroke="#fff" stroke-opacity="0.3" stroke-width="2"/>
+    <path d="M144 0V256M0 144H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M160 0V256M0 160H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M176 0V256M0 176H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M192 0V256M0 192H256" stroke="#fff" stroke-opacity="0.3" stroke-width="2"/>
+    <path d="M208 0V256M0 208H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M224 0V256M0 224H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <path d="M240 0V256M0 240H256" stroke="#fff" stroke-opacity="0.13" stroke-width="2"/>
+    <rect x="48" y="64" width="160" height="112" fill="#0442c4" stroke="#fff" stroke-width="8"/>
+    <rect x="64" y="52" width="64" height="24" fill="#fff"/>
+    <path d="M48 208H208M48 196V220M208 196V220M40 216L56 200M200 216L216 200" stroke="#fff" stroke-width="6" fill="none"/>
+  </g>
+</svg>

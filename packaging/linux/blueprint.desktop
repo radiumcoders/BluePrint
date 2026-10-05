@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=blueprint
+GenericName=Dev Server Manager
+Comment=Run many dev servers at once, each on its own port
+Exec=blueprint
+Icon=blueprint
+Terminal=false
+Categories=Development;
+Keywords=dev;server;port;localhost;npm;cargo;
+StartupWMClass=blueprint
