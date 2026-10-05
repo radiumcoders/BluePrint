@@ -34,6 +34,20 @@ pub fn corner_tag(text: impl Into<SharedString>) -> Div {
     tag(text).absolute().top(px(-8.)).left(px(14.))
 }
 
+/// An empty frame: outlined, crossed corner to corner, with a tag saying why.
+pub fn placeholder(text: impl Into<SharedString>) -> Div {
+    div()
+        .relative()
+        .flex_1()
+        .min_h(px(60.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(sketch::border(wash(0.35), 1., 6.))
+        .child(sketch::cross(wash(0.22)))
+        .child(tag(text))
+}
+
 /// A section heading.
 pub fn heading(text: impl Into<SharedString>, size: f32) -> Div {
     label(text, size, INK).font_weight(FontWeight::SEMIBOLD)

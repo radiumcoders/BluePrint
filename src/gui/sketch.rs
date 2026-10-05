@@ -89,6 +89,27 @@ pub fn dimension(color: Rgba) -> impl IntoElement {
     .inset_0()
 }
 
+/// Both diagonals of its parent, the drafting mark for an empty frame.
+pub fn cross(color: Rgba) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let (x0, y0) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
+            let (x1, y1) = (x0 + f32::from(bounds.size.width), y0 + f32::from(bounds.size.height));
+            let mut path = PathBuilder::stroke(px(1.));
+            path.move_to(pt(x0, y0));
+            path.line_to(pt(x1, y1));
+            path.move_to(pt(x1, y0));
+            path.line_to(pt(x0, y1));
+            if let Ok(path) = path.build() {
+                window.paint_path(path, color);
+            }
+        },
+    )
+    .absolute()
+    .inset_0()
+}
+
 /// A drafting ruler: a baseline on its inner edge with ticks every 10px,
 /// longer every 50px and longest every 100px. Horizontal rulers sit above
 /// content (baseline at the bottom), vertical ones to its left (baseline on

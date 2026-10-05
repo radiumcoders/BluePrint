@@ -12,7 +12,7 @@ use gpui_kit::*;
 
 use super::sketch;
 use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, TEXT, alpha, c, wash};
-use super::widgets::{Kind, button, corner_tag, heading, icon, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
+use super::widgets::{Kind, button, corner_tag, heading, icon, placeholder, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
@@ -363,16 +363,7 @@ impl Board {
     fn render_projects(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let count = self.m.entries.len();
         let body: AnyElement = if count == 0 {
-            div()
-                .flex_1()
-                .flex()
-                .flex_col()
-                .items_center()
-                .justify_center()
-                .gap_1()
-                .child(label("no projects yet", 15., MUTED))
-                .child(label("add one below", 12.5, FAINT))
-                .into_any_element()
+            div().flex_1().flex().p_4().child(placeholder("NO PROJECTS · ADD ONE BELOW")).into_any_element()
         } else {
             let rows: Vec<AnyElement> =
                 self.m.entries.iter().map(|e| self.render_project_row(e, cx).into_any_element()).collect();
@@ -637,9 +628,8 @@ impl Board {
                 .flex_none()
                 .h(px(190.))
                 .flex()
-                .items_center()
-                .justify_center()
-                .child(label("pick a project to see its details", 14., FAINT));
+                .p_5()
+                .child(placeholder("PICK A PROJECT"));
         };
         let id = e.id;
         let status = e.status();
@@ -871,8 +861,8 @@ impl Board {
                     .into_any_element()
             }
             Some(e) => {
-                let hint = if e.run.is_some() { "waiting for output…" } else { "not running · press start" };
-                div().flex_1().px_5().py_3().child(label(hint, 13., FAINT)).into_any_element()
+                let hint = if e.run.is_some() { "WAITING FOR OUTPUT" } else { "NOT RUNNING · PRESS START" };
+                div().flex_1().flex().p_5().pt(px(46.)).child(placeholder(hint)).into_any_element()
             }
             None => div().flex_1().into_any_element(),
         };
