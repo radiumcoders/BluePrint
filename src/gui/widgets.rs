@@ -6,7 +6,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use super::sketch;
-use super::theme::{AMBER, FAINT, GREEN, INK, MONO, MUTED, ON_INK, RED, WELL, alpha, c, hairline, line, sheet_fill, wash};
+use super::theme::{AMBER, DANGER, DANGER_HOVER, FAINT, GREEN, INK, MONO, MUTED, ON_INK, RED, WELL, alpha, c, hairline, line, sheet_fill, wash};
 use crate::manager::Status;
 
 pub fn icon(name: IconName, size: f32, color: Rgba) -> Svg {
@@ -112,7 +112,7 @@ pub fn button(
         Kind::Primary => (c(ON_INK), c(INK), c(0xdbe7ff)),
         Kind::Plain => (c(INK), wash(0.), wash(0.1)),
         Kind::Ghost => (c(MUTED), wash(0.), wash(0.08)),
-        Kind::Danger => (c(INK), c(0xe5483c), c(0xc93a2f)),
+        Kind::Danger => (c(INK), c(DANGER), c(DANGER_HOVER)),
     };
     let hover_fg = if kind == Kind::Ghost { c(INK) } else { fg };
     div()

@@ -18,12 +18,17 @@ pub const INK: u32 = 0xffffff;
 /// Blue text on white ink (tags, primary buttons).
 pub const ON_INK: u32 = 0x0552e1;
 pub const TEXT: u32 = 0xffffff;
-/// White at 72% and 45% over the field, kept opaque for crisp text.
-pub const MUTED: u32 = 0xb9cff7;
-pub const FAINT: u32 = 0x76a0ee;
+/// Quieter text, kept opaque for crisp edges. Every text color reaches WCAG
+/// AA (4.5:1) on the sheets; MUTED also on the bare field, where the sheet
+/// header sits.
+pub const MUTED: u32 = 0xcddcf9;
+pub const FAINT: u32 = 0xa8c3f5;
 pub const GREEN: u32 = 0x7dffb0;
 pub const AMBER: u32 = 0xffd166;
-pub const RED: u32 = 0xff8a80;
+pub const RED: u32 = 0xffb0a8;
+/// Fill of destructive buttons; white text on it reaches AA, as on its hover.
+pub const DANGER: u32 = 0xc0362b;
+pub const DANGER_HOVER: u32 = 0xa82d24;
 
 pub fn c(hex: u32) -> Rgba {
     rgb(hex)
