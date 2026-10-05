@@ -1244,9 +1244,10 @@ impl Board {
 
 impl Render for Board {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // Keyboard shortcuts need the board focused; claim focus whenever
-        // nothing else (like a dialog input) has it.
-        if window.focused(cx).is_none() {
+        // Keyboard shortcuts need the board focused. Without a dialog open,
+        // reclaim focus if it's nowhere or stuck on an input that was just
+        // closed (it isn't inside the board anymore).
+        if self.form.is_none() && !self.focus.contains_focused(window, cx) {
             window.focus(&self.focus, cx);
         }
         let form = self.form.as_ref().map(|f| self.render_form(f, cx).into_any_element());
