@@ -12,7 +12,7 @@ use gpui_kit::*;
 
 use super::sketch;
 use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, TEXT, alpha, c, wash};
-use super::widgets::{Kind, button, corner_tag, heading, icon, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
+use super::widgets::{Kind, button, corner_tag, heading, icon, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
@@ -654,6 +654,11 @@ impl Board {
         };
         let command =
             if e.project.command.is_empty() { "package.json dev".to_string() } else { e.project.command.clone() };
+        let host = url.split("://").nth(1).unwrap_or(&url).to_string();
+        let route = match e.project.port.or(e.app_port.filter(|_| e.run.is_some())) {
+            Some(p) => format!("127.0.0.1:{p} → {host}"),
+            None => format!("port assigned on start → {host}"),
+        };
         let pid = e.run.as_ref().map(|r| r.pid().to_string()).unwrap_or_else(|| "—".into());
         let up = e.run.as_ref().map(|r| fmt_duration(r.started.elapsed())).unwrap_or_else(|| "—".into());
         let mut status_text = status_word(status).to_string();
@@ -786,7 +791,14 @@ impl Board {
                     .child(url)
                     .when(live, |el| el.child(icon(IconName::ArrowUpRight, 15., c(INK)))),
             )
-            .child(sketch::rule(alpha(INK, 0.4)))
+            .child(
+                div()
+                    .relative()
+                    .h(px(16.))
+                    .my_1()
+                    .child(sketch::dimension(wash(0.55)))
+                    .child(div().absolute().inset_0().flex().items_center().justify_center().child(ink_tag(route))),
+            )
             .child(
                 div()
                     .flex()

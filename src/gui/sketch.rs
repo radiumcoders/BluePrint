@@ -63,6 +63,32 @@ pub fn grid(step: f32, major: usize, minor_color: Rgba, major_color: Rgba) -> im
     .inset_0()
 }
 
+/// A dimension line across its parent: a hairline with end stops and short
+/// 45° ticks, like the measurements on a drawing. Overlay a tag in the middle.
+pub fn dimension(color: Rgba) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds, _, window, _| {
+            let (x0, y0) = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
+            let (w, h) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
+            let mid = y0 + (h / 2.).floor();
+            hline(window, x0, x0 + w, mid, 1., color);
+            vline(window, x0, y0, y0 + h, 1., color);
+            vline(window, x0 + w - 1., y0, y0 + h, 1., color);
+            let mut ticks = PathBuilder::stroke(px(1.));
+            for x in [x0, x0 + w - 1.] {
+                ticks.move_to(pt(x - 3., mid + 3.));
+                ticks.line_to(pt(x + 3., mid - 3.));
+            }
+            if let Ok(path) = ticks.build() {
+                window.paint_path(path, color);
+            }
+        },
+    )
+    .absolute()
+    .inset_0()
+}
+
 /// A drafting ruler: a baseline on its inner edge with ticks every 10px,
 /// longer every 50px and longest every 100px. Horizontal rulers sit above
 /// content (baseline at the bottom), vertical ones to its left (baseline on
