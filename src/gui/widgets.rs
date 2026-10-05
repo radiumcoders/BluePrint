@@ -17,9 +17,9 @@ pub fn hand(text: impl Into<SharedString>, size: f32, color: u32) -> Div {
     div().font_family(HAND).text_size(px(size)).text_color(c(color)).child(text.into())
 }
 
-/// A white sheet with a hand-drawn ink border. `id` seeds the wobble.
-pub fn sheet(id: &str) -> Div {
-    div().relative().bg(c(SHEET)).child(sketch::border(sketch::seed(id), c(BLUE), 1.6))
+/// A white sheet outlined in ink, its edges running past the corners.
+pub fn sheet() -> Div {
+    div().relative().bg(c(SHEET)).child(sketch::border(c(BLUE), 1., 10.))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -65,7 +65,7 @@ pub fn button(
         .cursor_pointer()
         .hover(move |el| el.bg(hover_bg).text_color(hover_fg))
         .on_click(on_click)
-        .when(kind == Kind::Plain, |el| el.child(sketch::border(sketch::seed(id), c(BLUE), 1.2)))
+        .when(kind == Kind::Plain, |el| el.child(sketch::border(c(BLUE), 1., 4.)))
         .when_some(name, |el, name| el.child(icon(name, 15., fg)))
         .child(label.into())
 }
@@ -112,20 +112,20 @@ pub fn status_word(s: Status) -> &'static str {
     }
 }
 
-/// A status dot; lit states get a sketched ring around them.
-pub fn lamp(s: Status, seed: u64) -> Div {
+/// A status dot; lit states get a thin ring around them.
+pub fn lamp(s: Status) -> Div {
     let color = status_color(s);
     let lit = !matches!(s, Status::Stopped);
     div()
         .relative()
         .flex_none()
-        .size(px(16.))
+        .size(px(14.))
         .flex()
         .items_center()
         .justify_center()
-        .child(div().size(px(7.)).rounded_full().bg(c(color)))
+        .child(div().size(px(6.)).rounded_full().bg(c(color)))
         .when(lit, |el| {
-            el.child(div().absolute().inset_0().child(sketch::ring(seed, c(color), 1.2)))
+            el.child(div().absolute().inset_0().rounded_full().border_1().border_color(alpha(color, 0.55)))
         })
 }
 

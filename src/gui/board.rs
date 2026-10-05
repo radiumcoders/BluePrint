@@ -10,7 +10,7 @@ use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
-use super::sketch::{self, seed};
+use super::sketch;
 use super::theme::{self, BLUE, FAINT, HAND, MONO, MUTED, PAPER, RED, TEXT, alpha, c, wash};
 use super::widgets::{Kind, button, hand, icon, icon_button, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
@@ -21,7 +21,7 @@ use crate::manager::{Entry, Field, Id, Manager, MsgKind, Setup, SetupKind, Statu
 /// Rendering more lines than this makes long logs sluggish; older ones stay in memory.
 const MAX_RENDERED_LINES: usize = 800;
 /// Space between sheets.
-const GUTTER: f32 = 14.;
+const GUTTER: f32 = 18.;
 const SIDEBAR: f32 = 300.;
 
 
@@ -388,7 +388,7 @@ impl Board {
                 .into_any_element()
         };
 
-        sheet("projects")
+        sheet()
             .flex_1()
             .min_h_0()
             .flex()
@@ -403,7 +403,7 @@ impl Board {
                     .child(hand("projects", 26., BLUE))
                     .child(mono(format!("{count:02}"), 12., FAINT).pb_1()),
             )
-            .child(div().px_4().child(sketch::rule(seed("projects-rule"), alpha(BLUE, 0.55), 1.2)))
+            .child(div().px_4().child(sketch::rule(alpha(BLUE, 0.55))))
             .child(body)
     }
 
@@ -431,8 +431,8 @@ impl Board {
             .cursor_pointer()
             .map(|el| {
                 if selected {
-                    el.child(sketch::hatch(seed(&row_id), wash(0.16), 7.))
-                        .child(sketch::border(seed(&format!("{row_id}-sel")), alpha(BLUE, 0.7), 1.1))
+                    el.child(sketch::hatch(wash(0.2), 5.))
+                        .child(sketch::border(c(BLUE), 1., 6.))
                 } else {
                     el.hover(|el| el.bg(wash(0.05)))
                 }
@@ -441,7 +441,7 @@ impl Board {
                 window.focus(&this.focus, cx);
                 this.select(id, cx);
             }))
-            .child(lamp(status, seed(&row_id)))
+            .child(lamp(status))
             .child(
                 div()
                     .flex_1()
@@ -586,7 +586,7 @@ impl Board {
                     ))),
             );
 
-        sheet("manage")
+        sheet()
             .flex_none()
             .p_4()
             .flex()
@@ -638,7 +638,7 @@ impl Board {
 
     fn render_details(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(e) = self.selected.and_then(|id| self.m.get(id)) else {
-            return sheet("details")
+            return sheet()
                 .flex_none()
                 .h(px(190.))
                 .flex()
@@ -690,7 +690,7 @@ impl Board {
             )
         };
 
-        sheet("details")
+        sheet()
             .flex_none()
             .px_6()
             .pt_5()
@@ -703,7 +703,7 @@ impl Board {
                     .flex()
                     .items_center()
                     .gap_3()
-                    .child(lamp(status, seed("details-lamp")))
+                    .child(lamp(status))
                     .child(
                         mono(e.project.name.clone(), 24., TEXT)
                             .font_weight(FontWeight::SEMIBOLD)
@@ -790,7 +790,7 @@ impl Board {
                     .child(url)
                     .when(live, |el| el.child(icon(IconName::ArrowUpRight, 15., c(BLUE)))),
             )
-            .child(sketch::rule(seed("details-rule"), alpha(BLUE, 0.4), 1.1))
+            .child(sketch::rule(alpha(BLUE, 0.4)))
             .child(
                 div()
                     .flex()
@@ -867,13 +867,13 @@ impl Board {
             None => div().flex_1().into_any_element(),
         };
 
-        sheet("logs")
+        sheet()
             .flex_1()
             .min_h_0()
             .flex()
             .flex_col()
             .child(header)
-            .child(div().px_4().child(sketch::rule(seed("logs-rule"), alpha(BLUE, 0.4), 1.1)))
+            .child(div().px_4().child(sketch::rule(alpha(BLUE, 0.4))))
             .child(body)
     }
 
@@ -1001,7 +1001,7 @@ impl Board {
         };
 
         modal(
-            sheet("form")
+            sheet()
                 .w(px(660.))
                 .p_6()
                 .flex()
@@ -1020,7 +1020,7 @@ impl Board {
                             cx.listener(|this, _, window, cx| this.close_form(window, cx)),
                         )),
                 )
-                .child(sketch::rule(seed("form-rule"), alpha(BLUE, 0.45), 1.1))
+                .child(sketch::rule(alpha(BLUE, 0.45)))
                 .child(
                     div()
                         .flex()
@@ -1093,7 +1093,7 @@ impl Board {
                 .cursor_pointer()
                 .hover(|el| el.bg(wash(0.05)))
                 .on_click(move |ev, window, cx| on_click(ev, window, cx))
-                .child(sketch::border(seed(id), alpha(BLUE, if recommended { 1. } else { 0.35 }), 1.3))
+                .child(sketch::border(alpha(BLUE, if recommended { 1. } else { 0.35 }), 1., 6.))
                 .child(icon(name, 18., c(if recommended { BLUE } else { MUTED })))
                 .child(
                     div()
@@ -1211,7 +1211,7 @@ impl Board {
         };
 
         modal(
-            sheet("setup")
+            sheet()
                 .w(px(580.))
                 .p_6()
                 .flex()
@@ -1219,7 +1219,7 @@ impl Board {
                 .gap_3()
                 .child(hand(if waiting { "waiting for the proxy" } else { "one-time setup" }, 15., MUTED))
                 .child(hand("clean urls need port 443", 28., BLUE))
-                .child(sketch::rule(seed("setup-rule"), alpha(BLUE, 0.45), 1.1))
+                .child(sketch::rule(alpha(BLUE, 0.45)))
                 .child(content),
         )
     }
@@ -1229,7 +1229,7 @@ impl Board {
         let color = if *kind == MsgKind::Error { RED } else { BLUE };
         Some(
             div().absolute().bottom_6().left_0().right_0().flex().justify_center().child(
-                sheet("toast")
+                sheet()
                     .flex()
                     .items_center()
                     .gap_2p5()
@@ -1262,7 +1262,7 @@ impl Render for Board {
             .font_family(HAND)
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
-            .child(sketch::grid(16., wash(0.055), wash(0.11)))
+            .child(sketch::dots(18., 1., alpha(BLUE, 0.22)))
             .child(
                 div()
                     .absolute()
