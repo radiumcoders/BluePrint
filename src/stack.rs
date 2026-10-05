@@ -3,6 +3,10 @@
 //! blueprint hands every server its port in the `PORT` environment variable,
 //! so a recipe either uses a tool that reads `PORT` itself or passes `$PORT`
 //! on the command line.
+//!
+//! Recipes keep servers on localhost: where a tool would otherwise listen on
+//! every interface (Python's `http.server`, Streamlit), the recipe binds it
+//! to 127.0.0.1 so a project's files aren't served to the local network.
 
 use std::fs;
 use std::path::Path;
@@ -108,7 +112,7 @@ pub fn detect(dir: &Path) -> Option<Recipe> {
         .or_else(|| ruby(dir))
         .or_else(|| php(dir))
         .or_else(|| elixir(dir))
-        .or_else(|| has(dir, "index.html").then(|| recipe("static site", format!("{PYTHON} -m http.server $PORT"))).flatten())
+        .or_else(|| has(dir, "index.html").then(|| recipe("static site", format!("{PYTHON} -m http.server $PORT --bind 127.0.0.1"))).flatten())
 }
 
 fn node(dir: &Path) -> Option<Recipe> {
@@ -197,7 +201,7 @@ fn python(dir: &Path) -> Option<Recipe> {
         return recipe("Flask", format!("{run}flask --app {module} run --port $PORT"));
     }
     if deps.contains("streamlit") {
-        return recipe("Streamlit", format!("{run}streamlit run {entry} --server.port $PORT"));
+        return recipe("Streamlit", format!("{run}streamlit run {entry} --server.port $PORT --server.address localhost"));
     }
     let py = if run.is_empty() { PYTHON } else { "python" };
     env_recipe("Python", format!("{run}{py} {entry}"))
@@ -319,7 +323,7 @@ mod tests {
         );
         assert_eq!(command(&[("Gemfile", ""), ("bin/rails", "")]).as_deref(), Some(if cfg!(windows) { "ruby bin/rails server -p $PORT" } else { "bin/rails server -p $PORT" }));
         assert_eq!(command(&[("artisan", "")]).as_deref(), Some("php artisan serve --port=$PORT"));
-        assert_eq!(command(&[("index.html", "<p>")]).as_deref(), Some(format!("{PYTHON} -m http.server $PORT").as_str()));
+        assert_eq!(command(&[("index.html", "<p>")]).as_deref(), Some(format!("{PYTHON} -m http.server $PORT --bind 127.0.0.1").as_str()));
         assert_eq!(command(&[("README.md", "")]), None);
     }
 }
