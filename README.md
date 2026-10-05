@@ -6,6 +6,8 @@ A desktop app for running many dev servers at once through
 
 Built with Rust and [GPUI](https://www.gpui.rs) (through `gpui-kit`), drawn like a blueprint:
 solid blue panels on a `#0552e1` field with a fine white grid, set in Geist and Geist Mono.
+Lines come in three weights (hairline, line, solid ink), and only the details sheet and the
+main action are solid ink, so the eye always has one place to land.
 
 ## Requirements
 
