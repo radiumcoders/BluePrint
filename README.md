@@ -5,7 +5,7 @@ A desktop app for running many dev servers at once through
 (`https://shop.localhost`) instead of a port number.
 
 Built with Rust and [GPUI](https://www.gpui.rs) (through `gpui-kit`), drawn like a blueprint:
-white sheets in `#0552e1` ink on dot-grid paper, set in Geist and Geist Mono.
+white paper sheets inked in `#0552e1` on a blue gridded field, set in Geist and Geist Mono.
 
 ## Requirements
 

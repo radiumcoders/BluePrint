@@ -82,10 +82,10 @@ pub fn button(
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
     let (fg, bg, hover_bg) = match kind {
-        Kind::Primary => (c(ON_INK), c(INK), c(0xdbe7ff)),
+        Kind::Primary => (c(ON_INK), c(INK), c(0x0444b8)),
         Kind::Plain => (c(INK), wash(0.), wash(0.1)),
         Kind::Ghost => (c(MUTED), wash(0.), wash(0.08)),
-        Kind::Danger => (c(INK), c(0xe5483c), c(0xc93a2f)),
+        Kind::Danger => (c(ON_INK), c(0xe5483c), c(0xc93a2f)),
     };
     let hover_fg = if kind == Kind::Ghost { c(INK) } else { fg };
     div()
