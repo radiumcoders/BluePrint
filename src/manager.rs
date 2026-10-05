@@ -756,6 +756,24 @@ mod tests {
         assert!(e.logs.iter().position(|l| l.starts_with("line 19999 ")).unwrap() as u64 + e.log_start > 20_000);
     }
 
+    /// Removing a running project stops its server without blocking.
+    #[test]
+    fn removing_stops_the_server() {
+        let mut m = crate::testkit::manager("remove");
+        let id = add_helper(&mut m, "web", "serve", 4945);
+        m.start(id);
+        wait_until(&mut m, id, SOON, "running", |m| m.get(id).unwrap().status() == Status::Running);
+        let started = Instant::now();
+        m.remove(id);
+        assert!(started.elapsed() < Duration::from_millis(500), "remove blocked");
+        assert!(m.get(id).is_none());
+        let deadline = Instant::now() + process::STOP_GRACE + Duration::from_secs(2);
+        while process::port_in_use(4945) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        assert!(!process::port_in_use(4945), "the removed project's server is still listening");
+    }
+
     /// Invalid UTF-8 and broken escapes come through as lines and render
     /// without panicking.
     #[test]
