@@ -29,9 +29,28 @@ pub fn tag(text: impl Into<SharedString>) -> Div {
         .child(mono(text, 10., ON_INK).font_weight(FontWeight::SEMIBOLD))
 }
 
-/// A [`tag`] pinned over a sheet's top edge. Pass uppercase text.
+/// A [`tag`] pinned over a sheet's top edge, for the sheet that leads the
+/// board. Pass uppercase text.
 pub fn corner_tag(text: impl Into<SharedString>) -> Div {
     tag(text).absolute().top(px(-8.)).left(px(14.))
+}
+
+/// The quiet version of [`corner_tag`] for supporting sheets: outlined ink
+/// instead of solid, so only one tag on the board shouts.
+pub fn corner_label(text: impl Into<SharedString>) -> Div {
+    div()
+        .absolute()
+        .top(px(-8.))
+        .left(px(14.))
+        .h(px(16.))
+        .px_1p5()
+        .flex()
+        .flex_none()
+        .items_center()
+        .bg(sheet_fill())
+        .border_1()
+        .border_color(line())
+        .child(mono(text, 10., INK).font_weight(FontWeight::SEMIBOLD))
 }
 
 /// An empty frame: outlined, crossed corner to corner, with a tag saying why.
@@ -61,6 +80,11 @@ fn caption(text: &str) -> Div {
 /// A sheet with a faint hairline outline.
 pub fn sheet() -> Div {
     div().relative().bg(sheet_fill()).child(sketch::border(hairline(), 1.))
+}
+
+/// The sheet the eye should land on first: same fill, a firmer outline.
+pub fn lead_sheet() -> Div {
+    div().relative().bg(sheet_fill()).child(sketch::border(line(), 1.))
 }
 
 #[derive(Clone, Copy, PartialEq)]

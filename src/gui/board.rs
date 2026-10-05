@@ -12,7 +12,7 @@ use gpui_kit::*;
 
 use super::sketch;
 use super::theme::{self, FAINT, FIELD, INK, MONO, MUTED, RED, SANS, TEXT, alpha, c, hairline, line, wash};
-use super::widgets::{Kind, button, corner_tag, heading, icon, placeholder, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
+use super::widgets::{Kind, button, corner_label, corner_tag, heading, lead_sheet, icon, placeholder, tag as ink_tag, icon_button, label, lamp, mono, sheet, spec, spec_tail, status_color, status_word};
 use crate::ansi;
 use crate::config::{display_path, suggest_name};
 use crate::folders::{self, Folder};
@@ -387,7 +387,7 @@ impl Board {
             .flex()
             .flex_col()
             .pt_3()
-            .child(corner_tag(format!("PROJECTS · {count:02}")))
+            .child(corner_label(format!("PROJECTS · {count:02}")))
             .child(body)
     }
 
@@ -569,7 +569,7 @@ impl Board {
             );
 
         sheet()
-            .child(corner_tag("MANAGE"))
+            .child(corner_label("MANAGE"))
             .flex_none()
             .p_4()
             .flex()
@@ -621,7 +621,7 @@ impl Board {
 
     fn render_details(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(e) = self.selected.and_then(|id| self.m.get(id)) else {
-            return sheet()
+            return lead_sheet()
                 .child(corner_tag("DETAILS"))
                 .flex_none()
                 .h(px(190.))
@@ -678,7 +678,7 @@ impl Board {
             )
         };
 
-        sheet()
+        lead_sheet()
             .child(corner_tag("DETAILS"))
             .flex_none()
             .px_6()
@@ -871,7 +871,7 @@ impl Board {
             .flex()
             .flex_col()
             .pt_3()
-            .child(corner_tag(tag))
+            .child(corner_label(tag))
             .child(body)
             .child(tools)
     }
