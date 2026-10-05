@@ -577,7 +577,8 @@ impl Manager {
 
     /// Ports below 1024 (443 for plain `https://name.localhost`) need root.
     pub fn proxy_needs_root(&self) -> bool {
-        self.config.proxy_port < 1024
+        // Windows lets anyone listen on low ports.
+        cfg!(unix) && self.config.proxy_port < 1024
     }
 
     /// Port of a running proxy that isn't on the configured port.
@@ -680,11 +681,26 @@ fn listening(port: u16) -> bool {
     })
 }
 
+#[cfg(unix)]
 fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
 
+/// Run `steps` in a new console window. Clean URLs never need it on Windows,
+/// but the proxy commands work the same if it's ever used.
+#[cfg(windows)]
+fn open_terminal(title: &str, steps: &[String]) -> std::io::Result<()> {
+    crate::platform::command("cmd")
+        .args(["/C", "start", title, "cmd", "/K", &steps.join(" && ")])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(drop)
+}
+
 /// Run shell `steps` in a new terminal window (sudo needs a TTY to ask for a password).
+#[cfg(unix)]
 fn open_terminal(title: &str, steps: &[String]) -> std::io::Result<()> {
     let path = std::env::var("PATH").unwrap_or_default();
     let script = format!(

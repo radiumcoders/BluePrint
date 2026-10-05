@@ -2,15 +2,26 @@
 //! the user's shell profile adds (mise, cargo, bun, go, ...). Without it,
 //! `portless` and the dev servers' own tools aren't found.
 
+#[cfg(unix)]
 use std::io::Read;
+#[cfg(unix)]
 use std::path::PathBuf;
+#[cfg(unix)]
 use std::process::{Command, Stdio};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
+#[cfg_attr(windows, allow(dead_code))]
 const MARK: &str = "__BLUEPRINT_PATH__";
 
 /// When not started from a terminal, add the login shell's PATH and common
 /// tool folders to ours. Call before spawning any threads.
+#[cfg(windows)]
+pub fn import_path() {
+    // Windows apps get the user's full PATH from the registry already.
+}
+
+#[cfg(unix)]
 pub fn import_path() {
     if unsafe { libc::isatty(0) } == 1 {
         return; // A terminal already has the user's PATH.
@@ -36,6 +47,7 @@ pub fn import_path() {
     }
 }
 
+#[cfg(unix)]
 /// PATH as an interactive login shell sets it, or `None` if the shell
 /// doesn't answer within a few seconds.
 fn login_shell_path() -> Option<String> {
@@ -61,6 +73,7 @@ fn login_shell_path() -> Option<String> {
     parse(&out)
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 fn parse(out: &str) -> Option<String> {
     let start = out.find(MARK)? + MARK.len();
     let len = out[start..].find(MARK)?;

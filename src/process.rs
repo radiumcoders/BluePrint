@@ -1,15 +1,14 @@
 //! Spawning dev servers through portless and streaming their output.
 
 use std::io::{self, BufRead, BufReader, Read};
-use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, ExitStatus, Stdio};
 use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::config::Project;
-use crate::guardian;
+use crate::platform;
 
 /// How long a server gets to shut down after SIGTERM before it is SIGKILLed.
 pub const STOP_GRACE: Duration = Duration::from_secs(4);
@@ -45,11 +44,11 @@ impl Running {
     /// server whose parent died) gets SIGTERM; the guardian keeps tracking the
     /// group until it is empty.
     fn reaped(&mut self) {
-        let pgid = self.pid();
-        if guardian::group_alive(pgid) {
-            signal_group(pgid, libc::SIGTERM);
+        let pid = self.pid();
+        if platform::tree_alive(pid) {
+            platform::terminate(pid);
         } else {
-            guardian::unwatch(pgid);
+            platform::release(pid);
         }
     }
 
@@ -62,7 +61,7 @@ impl Running {
     /// grandchildren (e.g. `npm run dev` -> `sh` -> `node`).
     pub fn stop(&mut self) {
         if self.stop_sent.is_none() {
-            signal_group(self.pid(), libc::SIGTERM);
+            platform::terminate(self.pid());
             self.stop_sent = Some(Instant::now());
         }
     }
@@ -73,23 +72,16 @@ impl Running {
             && !self.killed
             && t.elapsed() >= STOP_GRACE
         {
-            signal_group(self.pid(), libc::SIGKILL);
+            platform::kill(self.pid());
             self.killed = true;
         }
     }
 
     pub fn kill_now(&mut self) {
-        signal_group(self.pid(), libc::SIGKILL);
+        platform::kill(self.pid());
         self.killed = true;
         let _ = self.child.wait();
         self.reaped();
-    }
-}
-
-fn signal_group(pid: u32, sig: libc::c_int) {
-    // Children are spawned with process_group(0), so their pgid equals their pid.
-    unsafe {
-        libc::kill(-(pid as libc::pid_t), sig);
     }
 }
 
@@ -117,8 +109,10 @@ pub fn portless_args(project: &Project) -> Result<Vec<String>, String> {
     }
     if !cmd.is_empty() {
         args.push("--".into());
-        if needs_shell(cmd) {
-            args.extend(["sh".into(), "-c".into(), cmd.to_string()]);
+        // Quoted arguments need the shell too on Windows, where portless
+        // joins the words back together with plain spaces.
+        if needs_shell(cmd) || (cfg!(windows) && cmd.contains(['"', '\''])) {
+            args.extend(platform::shell_args(cmd));
         } else {
             let words = shell_words::split(cmd).map_err(|e| format!("bad command: {e}"))?;
             args.extend(words);
@@ -137,7 +131,9 @@ pub fn spawn(
     if !project.path.is_dir() {
         return Err(format!("folder not found: {}", project.path.display()));
     }
-    let mut child = Command::new("portless")
+    let mut command = platform::command("portless");
+    platform::isolate(&mut command);
+    let mut child = command
         .args(&args)
         .current_dir(&project.path)
         .env("PORTLESS_PORT", proxy_port.to_string())
@@ -145,7 +141,6 @@ pub fn spawn(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .process_group(0)
         .spawn()
         .map_err(|e| match e.kind() {
             io::ErrorKind::NotFound => {
@@ -154,7 +149,7 @@ pub fn spawn(
             _ => format!("failed to start: {e}"),
         })?;
 
-    guardian::watch(child.id());
+    platform::adopt(&child);
     let _ = tx.send(Event::Log {
         id,
         line: format!("$ portless {}", shell_words::join(&args)),
@@ -252,14 +247,14 @@ pub fn proxy_status() -> ProxyStatus {
     };
     let running = read("proxy.pid")
         .and_then(|p| p.parse::<u32>().ok())
-        .is_some_and(|pid| PathBuf::from(format!("/proc/{pid}")).exists());
+        .is_some_and(platform::pid_alive);
     let port = read("proxy.port").and_then(|p| p.parse().ok());
     let tls = read("proxy.tls").is_none_or(|t| t != "0" && t != "false");
     ProxyStatus { running, port, tls }
 }
 
 pub fn portless_installed() -> bool {
-    Command::new("portless")
+    platform::command("portless")
         .arg("--version")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -270,7 +265,7 @@ pub fn portless_installed() -> bool {
 /// Run `portless proxy start|stop` off the UI thread.
 pub fn proxy_command(start: bool, port: u16, tx: Sender<Event>) {
     thread::spawn(move || {
-        let mut cmd = Command::new("portless");
+        let mut cmd = platform::command("portless");
         cmd.arg("proxy");
         if start {
             cmd.args(["start", "-p", &port.to_string()]);
@@ -347,6 +342,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn args_shell() {
         assert_eq!(
@@ -355,11 +351,21 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn args_expand_port() {
         assert_eq!(
             portless_args(&proj("trunk serve --port $PORT", None)).unwrap(),
             ["--name", "app", "--", "sh", "-c", "trunk serve --port $PORT"]
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn args_for_cmd() {
+        assert_eq!(
+            portless_args(&proj("trunk serve --port $PORT", None)).unwrap(),
+            ["--name", "app", "--", "trunk serve --port %PORT%"]
         );
     }
 

@@ -706,6 +706,7 @@ dependencies = [
  "serde",
  "shell-words",
  "toml 1.1.6+spec-1.1.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

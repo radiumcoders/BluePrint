@@ -1,9 +1,14 @@
+// Release builds on Windows are GUI apps: no console window behind them.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod ansi;
 mod config;
 mod folders;
+#[cfg(unix)]
 mod guardian;
 mod gui;
 mod manager;
+mod platform;
 mod process;
 mod shellenv;
 mod stack;
@@ -24,10 +29,12 @@ pub fn terminated() -> bool {
     TERMINATED.load(Ordering::SeqCst)
 }
 
+#[cfg(unix)]
 extern "C" fn on_signal(_: libc::c_int) {
     TERMINATED.store(true, Ordering::SeqCst);
 }
 
+#[cfg(unix)]
 fn install_signal_handlers() {
     for sig in [libc::SIGHUP, libc::SIGTERM, libc::SIGINT] {
         unsafe {
@@ -46,6 +53,7 @@ fn install_signal_handlers() {
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    #[cfg(unix)]
     if args.first().map(String::as_str) == Some(guardian::FLAG) {
         guardian::run();
     }
@@ -66,8 +74,11 @@ fn main() -> Result<()> {
     shellenv::import_path();
     let path = Config::path();
     let config = Config::load(&path)?;
-    guardian::spawn();
-    install_signal_handlers();
+    #[cfg(unix)]
+    {
+        guardian::spawn();
+        install_signal_handlers();
+    }
     gui::run(Manager::new(config, path));
     Ok(())
 }

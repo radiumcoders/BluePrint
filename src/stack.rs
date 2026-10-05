@@ -17,6 +17,9 @@ pub struct Recipe {
     pub reads_env: bool,
 }
 
+/// Python's name on PATH: Windows installs it as `python`.
+const PYTHON: &str = if cfg!(windows) { "python" } else { "python3" };
+
 fn recipe(name: &'static str, command: impl Into<String>) -> Option<Recipe> {
     Some(Recipe { name, command: command.into(), reads_env: false })
 }
@@ -57,7 +60,7 @@ pub fn detect(dir: &Path) -> Option<Recipe> {
         .or_else(|| ruby(dir))
         .or_else(|| php(dir))
         .or_else(|| elixir(dir))
-        .or_else(|| has(dir, "index.html").then(|| recipe("static site", "python3 -m http.server $PORT")).flatten())
+        .or_else(|| has(dir, "index.html").then(|| recipe("static site", format!("{PYTHON} -m http.server $PORT"))).flatten())
 }
 
 fn node(dir: &Path) -> Option<Recipe> {
@@ -139,7 +142,7 @@ fn python(dir: &Path) -> Option<Recipe> {
     };
     let deps = deps.to_lowercase();
     if manage {
-        let py = if run.is_empty() { "python3" } else { "python" };
+        let py = if run.is_empty() { PYTHON } else { "python" };
         return recipe("Django", format!("{run}{py} manage.py runserver $PORT"));
     }
     let entry = ["main.py", "app.py"].into_iter().find(|f| has(dir, f))?;
@@ -153,7 +156,7 @@ fn python(dir: &Path) -> Option<Recipe> {
     if deps.contains("streamlit") {
         return recipe("Streamlit", format!("{run}streamlit run {entry} --server.port $PORT"));
     }
-    let py = if run.is_empty() { "python3" } else { "python" };
+    let py = if run.is_empty() { PYTHON } else { "python" };
     env_recipe("Python", format!("{run}{py} {entry}"))
 }
 
@@ -162,7 +165,9 @@ fn ruby(dir: &Path) -> Option<Recipe> {
         return None;
     }
     if has(dir, "bin/rails") {
-        return recipe("Rails", "bin/rails server -p $PORT");
+        // Windows can't run the script directly.
+        let rails = if cfg!(windows) { "ruby bin/rails" } else { "bin/rails" };
+        return recipe("Rails", format!("{rails} server -p $PORT"));
     }
     has(dir, "config.ru").then(|| recipe("Rack", "bundle exec rackup -p $PORT")).flatten()
 }
@@ -244,9 +249,9 @@ mod tests {
             command(&[("pyproject.toml", "fastapi"), ("main.py", "")]).as_deref(),
             Some("uvicorn main:app --reload --port $PORT")
         );
-        assert_eq!(command(&[("Gemfile", ""), ("bin/rails", "")]).as_deref(), Some("bin/rails server -p $PORT"));
+        assert_eq!(command(&[("Gemfile", ""), ("bin/rails", "")]).as_deref(), Some(if cfg!(windows) { "ruby bin/rails server -p $PORT" } else { "bin/rails server -p $PORT" }));
         assert_eq!(command(&[("artisan", "")]).as_deref(), Some("php artisan serve --port=$PORT"));
-        assert_eq!(command(&[("index.html", "<p>")]).as_deref(), Some("python3 -m http.server $PORT"));
+        assert_eq!(command(&[("index.html", "<p>")]).as_deref(), Some(format!("{PYTHON} -m http.server $PORT").as_str()));
         assert_eq!(command(&[("README.md", "")]), None);
     }
 }
