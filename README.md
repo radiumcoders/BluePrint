@@ -33,21 +33,11 @@ focused thing, the main action. Switch the terminal's theme and blueprint follow
 - Linux or Windows, in a terminal with 256 or true colors (most are). macOS should work from
   source but isn't tested.
 - Whatever your projects use (Node, Cargo, Python, ...). Nothing else.
-- To run from source or build it: [Bun](https://bun.sh) 1.4 or newer.
+- [Bun](https://bun.sh) 1.4 or newer, to run it or build it.
 
 ## Install
 
-Download the latest release from the
-[releases page](https://github.com/radiumcoders/BluePrint/releases). Each is a single file with
-nothing else to install:
-
-- **Linux**: `blueprint-<version>-linux-x86_64.tar.gz`. Unpack it and put `blueprint` somewhere
-  on your `PATH`, like `~/.local/bin`.
-- **Windows**: `blueprint-<version>-windows-x86_64.zip` or the plain `.exe`. Run it from Windows
-  Terminal or PowerShell. It isn't code-signed, so SmartScreen may ask first: "More info → Run
-  anyway".
-
-Or run it from source:
+Run it from source, or build it into a single file with nothing else to install:
 
 ```sh
 git clone https://github.com/radiumcoders/BluePrint.git
@@ -56,6 +46,9 @@ bun install
 bun start                 # run it
 bun run build             # or build the single-file binary into dist/blueprint
 ```
+
+Put `dist/blueprint` (`blueprint.exe` on Windows) somewhere on your `PATH`, like
+`~/.local/bin`, to run it as `blueprint` from any terminal.
 
 ## Using it
 
@@ -225,5 +218,4 @@ bun run build                   # single-file binary in dist/
 ```
 
 The code is in two parts: `src/core` runs the servers and knows nothing about the screen
-(config, start recipes, processes, logs), and `src/ui` draws it with OpenTUI. CI runs the
-typecheck and every test on Linux and Windows for each push and pull request.
+(config, start recipes, processes, logs), and `src/ui` draws it with OpenTUI.
