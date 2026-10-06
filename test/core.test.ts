@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { chmodSync } from "node:fs"
+import { installedTools, launchFor, TOOLS, type Installed } from "../src/core/agents"
 import { parse, strip } from "../src/core/ansi"
 import { loadConfig, packageName, saveConfig, slugify, validateName, type Config } from "../src/core/config"
 import { fuzzy, listFolders } from "../src/core/folders"
@@ -302,5 +304,36 @@ describe("log index", () => {
     // Escapes don't count toward matches, and copies come out plain.
     expect(ix.sync(e, "error:")).toEqual({ kind: "reset" })
     expect(ix.plainText(e)).toBe("error: boom\n")
+  })
+})
+
+describe.skipIf(process.platform === "win32")("agents", () => {
+  const claude: Installed = { ...TOOLS[0]!, bin: "/bin/claude" }
+  const cursor: Installed = { ...TOOLS.find((t) => t.name === "Cursor")!, bin: "/bin/cursor" }
+
+  test("finds what's on PATH, in the listed order", () => {
+    const bin = projectDir("agents", { opencode: "", claude: "", zeditor: "", notes: "" })
+    for (const f of ["opencode", "claude", "zeditor"]) chmodSync(join(bin, f), 0o755)
+    const found = installedTools(bin)
+    expect(found.map((t) => t.name)).toEqual(["Claude Code", "OpenCode", "Zed"])
+    expect(found[2]!.bin).toBe(join(bin, "zeditor"))
+  })
+
+  test("editors get the folder; agents start in a terminal in it", () => {
+    expect(launchFor(cursor, "/p/shop")).toEqual({ file: "/bin/cursor", args: ["/p/shop"] })
+    if (process.platform === "darwin") return
+    expect(launchFor(claude, "/p/shop", { TERMINAL: "xdg-terminal-exec" })).toEqual({
+      file: "xdg-terminal-exec",
+      args: ["--dir=/p/shop", "/bin/claude"],
+    })
+    expect(launchFor(claude, "/p/shop", { TERMINAL: "/usr/bin/kitty" })).toEqual({
+      file: "/usr/bin/kitty",
+      args: ["--directory", "/p/shop", "/bin/claude"],
+    })
+    expect(launchFor(claude, "/p/shop", { TERMINAL: "myterm --x" })).toEqual({
+      file: "myterm",
+      args: ["--x", "-e", "/bin/claude"],
+    })
+    expect(launchFor(claude, "/p/shop", { PATH: tempDir("empty") })).toBeString()
   })
 })

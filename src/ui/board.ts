@@ -4,13 +4,14 @@
 import { writeFileSync } from "node:fs"
 import { isAbsolute, join, resolve } from "node:path"
 import type { KeyEvent } from "@opentui/core"
+import type { Installed } from "../core/agents"
 import { displayPath, expandTilde, isDir, suggestName } from "../core/config"
 import { fuzzy, listFolders, type Folder } from "../core/folders"
 import { LogIndex } from "../core/logindex"
 import type { Entry, Field, Id, Manager } from "../core/manager"
 import { detect, type Recipe } from "../core/stack"
 
-export type Mode = "normal" | "filter" | "form" | "save" | "help" | "quitting"
+export type Mode = "normal" | "filter" | "form" | "save" | "help" | "agent" | "quitting"
 
 export type FormField = "folder" | "name" | "port" | "command"
 const FIELDS: FormField[] = ["folder", "name", "port", "command"]
@@ -38,6 +39,10 @@ export interface Host {
   /** Put text on the clipboard; false if the terminal can't. */
   copy(text: string): boolean
   openUrl(url: string): void
+  /** The editors and agents that are installed. */
+  tools(): Installed[]
+  /** Open a folder in one of them. */
+  openIn(tool: Installed, dir: string): Promise<void>
   /** Called once every server has stopped after a quit. */
   exit(): void
 }
@@ -59,6 +64,11 @@ export class Board {
   viewRows = 10
   /** Where "save logs" writes, while its prompt is open. */
   savePath = ""
+  /** The tools offered while the "open in" picker is open, and the highlighted one. */
+  tools: Installed[] = []
+  toolHighlight = 0
+  /** The tool picked last, highlighted first next time. */
+  private lastTool?: string
   private listeners = new Set<() => void>()
   private lastSecond = performance.now()
 
@@ -155,6 +165,8 @@ export class Board {
         return this.formKey(k)
       case "save":
         return this.saveKey(k)
+      case "agent":
+        return this.agentKey(k)
       case "filter":
         return this.filterKey(k)
       case "normal":
@@ -214,6 +226,8 @@ export class Board {
       case "e":
         if (sel !== undefined) this.openForm(sel)
         return
+      case "i":
+        return this.openAgents()
       case "o": {
         const url = this.entry?.url()
         if (url) this.openUrl(url)
@@ -340,6 +354,55 @@ export class Board {
     } else {
       return
     }
+    this.changed()
+  }
+
+  // -------------------------------------------------------------------------
+  // Open in an editor or agent
+
+  private openAgents() {
+    if (!this.entry) return
+    this.tools = this.host.tools()
+    if (!this.tools.length) {
+      this.m.error("No editors or coding agents found on PATH")
+      return this.changed()
+    }
+    this.toolHighlight = Math.max(0, this.tools.findIndex((t) => t.name === this.lastTool))
+    this.mode = "agent"
+    this.changed()
+  }
+
+  private agentKey(k: KeyEvent) {
+    const n = this.tools.length
+    const digit = /^[1-9]$/.test(k.sequence) ? Number(k.sequence) : 0
+    if (k.name === "escape" || k.name === "q") {
+      this.mode = "normal"
+    } else if (k.name === "up" || k.name === "k") {
+      this.toolHighlight = (this.toolHighlight - 1 + n) % n
+    } else if (k.name === "down" || k.name === "j" || k.name === "tab") {
+      this.toolHighlight = (this.toolHighlight + 1) % n
+    } else if (k.name === "return" || k.name === "space") {
+      return this.pickTool(this.toolHighlight)
+    } else if (digit && digit <= n) {
+      return this.pickTool(digit - 1)
+    } else {
+      return
+    }
+    this.changed()
+  }
+
+  /** Open the selected project in the `i`th tool offered. */
+  pickTool(i: number) {
+    const tool = this.tools[i]
+    const e = this.entry
+    this.mode = "normal"
+    if (!tool || !e) return this.changed()
+    this.lastTool = tool.name
+    const name = e.project.name
+    this.host.openIn(tool, e.project.path).then(
+      () => this.m.info(`Opened ${name} in ${tool.name}`),
+      (err: Error) => this.m.error(`Couldn't open ${tool.name}: ${err.message}`),
+    ).finally(() => this.changed())
     this.changed()
   }
 

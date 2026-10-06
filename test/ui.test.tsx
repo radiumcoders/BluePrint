@@ -3,6 +3,7 @@ import { testRender } from "@opentui/react/test-utils"
 import { join } from "node:path"
 import { act } from "react"
 import type { TestRendererSetup } from "@opentui/core/testing"
+import type { Installed } from "../src/core/agents"
 import { Manager } from "../src/core/manager"
 import { App } from "../src/ui/app"
 import { Board } from "../src/ui/board"
@@ -16,7 +17,7 @@ afterEach(() => {
 })
 
 /** The app on a test screen, with a projects root holding `shop` (node) and `api` (go). */
-async function setup(opts: { projects?: boolean; width?: number; height?: number } = {}) {
+async function setup(opts: { projects?: boolean; width?: number; height?: number; tools?: Installed[] } = {}) {
   const root = projectDir("ui", {
     "shop/package.json": '{"name":"shop","scripts":{"dev":"next dev"}}',
     "api/go.mod": "module api",
@@ -32,6 +33,10 @@ async function setup(opts: { projects?: boolean; width?: number; height?: number
   const board = new Board(m, {
     copy: (t) => (copied.push(t), true),
     openUrl: (u) => opened.push(u),
+    tools: () => opts.tools ?? [],
+    openIn: async (tool, dir) => {
+      opened.push(`${tool.name} ${dir}`)
+    },
     exit() {},
   })
   const selections: string[] = []
@@ -238,4 +243,39 @@ test("a long project list keeps the selection in view", async () => {
   expect(f).toContain("p15")
   expect(f).not.toContain("p00")
   expect(f).toContain("16 of 20")
+})
+
+test("i opens the project in a picked editor or agent", async () => {
+  const tools: Installed[] = [
+    { name: "Claude Code", commands: ["claude"], kind: "agent", bin: "/bin/claude" },
+    { name: "Cursor", commands: ["cursor"], kind: "editor", bin: "/bin/cursor" },
+  ]
+  const { m, frame, keys, opened } = await setup({ projects: true, tools })
+  await keys("i")
+  let f = await frame()
+  expect(f).toContain("Open shop in")
+  expect(f).toMatch(/› 1  Claude Code +in a terminal/)
+  expect(f).toMatch(/2  Cursor +editor/)
+
+  await keys("j", "\r")
+  expect(opened).toEqual([`Cursor ${m.entries[0]!.project.path}`])
+  f = await frame()
+  expect(f).not.toContain("Open shop in")
+  expect(f).toContain("Opened shop in Cursor")
+
+  // The last pick comes first; a digit picks directly; esc cancels.
+  await keys("i")
+  expect(await frame()).toMatch(/› 2  Cursor/)
+  await keys("escape")
+  expect(await frame()).not.toContain("Open shop in")
+  await keys("i", "1")
+  expect(opened.at(-1)).toBe(`Claude Code ${m.entries[0]!.project.path}`)
+})
+
+test("i with nothing installed says so", async () => {
+  const { frame, keys } = await setup({ projects: true })
+  await keys("i")
+  const f = await frame()
+  expect(f).not.toContain("Open shop in")
+  expect(f).toContain("No editors or coding agents found on PATH")
 })

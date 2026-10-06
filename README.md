@@ -20,7 +20,7 @@ A terminal app for running many dev servers at once. Each project gets its own p
   ready on http://localhost:3000
   GET / 200 in 41ms
 
-  enter stop   r restart   n new   e edit   o open   / filter   ? help   q quit
+  enter stop   r restart   n new   e edit   o open   i agent   / filter   ? help   q quit
 ```
 
 Built with [Bun](https://bun.sh) and [OpenTUI](https://github.com/anomalyco/opentui) (its React
@@ -74,6 +74,12 @@ Run `blueprint` in a terminal.
   file with `w`.
 - **Editing a running project** changes nothing until you restart it: the board keeps showing
   the port, URL and command it runs with, marked "edited, restart to apply".
+- **Open in an editor or agent**: press `i` to choose from the ones installed (found on your
+  `PATH`): Claude Code, OpenCode, Codex, Gemini CLI, Crush, Amp, Aider, Copilot CLI, Cursor, VS
+  Code, VSCodium, Windsurf and Zed. Pick one with `↑` `↓` and `Enter`, or its number. Editors
+  open the folder; terminal agents start in a new terminal window in the project's folder:
+  `$TERMINAL` if set, else `xdg-terminal-exec` or the first known terminal installed (Terminal
+  on macOS, a new console on Windows). The last one you picked is highlighted next time.
 - **Mouse**: click a project to select it, click a running project's URL to open it, scroll the
   logs, and drag over text to copy it.
 
@@ -88,6 +94,7 @@ Run `blueprint` in a terminal.
 | `d` / `Delete` | remove (press twice) |
 | `Alt+↑` `Alt+↓` / `J` `K` | move the project up / down |
 | `o` / `c` | open in the browser / copy the URL |
+| `i` | open the project in an editor or coding agent |
 | `/` or `Ctrl+F` | filter logs |
 | `Esc` | clear the filter, close the form, help or a prompt |
 | `PgUp` `PgDn`, `Ctrl+U` `Ctrl+D` | scroll logs |

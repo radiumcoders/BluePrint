@@ -2,6 +2,7 @@
 import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import pkg from "../package.json"
+import { installedTools, openIn } from "./core/agents"
 import { configPath, loadConfig } from "./core/config"
 import * as guardian from "./core/guardian"
 import { Manager } from "./core/manager"
@@ -59,7 +60,13 @@ function exit(code: number) {
 }
 
 const copy = (text: string) => renderer.copyToClipboardOSC52(text)
-const board = new Board(manager, { copy, openUrl: platform.openUrl, exit: () => exit(0) })
+const board = new Board(manager, {
+  copy,
+  openUrl: platform.openUrl,
+  tools: () => installedTools(),
+  openIn,
+  exit: () => exit(0),
+})
 
 // Closing the terminal or a kill stops every server on the way out. If that
 // stalls, exit anyway; the guardian (or the job objects) stop the servers.

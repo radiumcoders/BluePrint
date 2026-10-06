@@ -7,7 +7,7 @@ import { useKeyboard, useSelectionHandler, useTerminalDimensions } from "@opentu
 import { useEffect, useReducer } from "react"
 import type { Board } from "./board"
 import { Strip, Welcome } from "./details"
-import { HelpDialog, ProjectForm, QuittingDialog, SaveDialog, sheetRows } from "./dialogs"
+import { AgentDialog, HelpDialog, ProjectForm, QuittingDialog, SaveDialog, sheetRows } from "./dialogs"
 import { Logs } from "./logs"
 import { boardRows, GUTTER, Projects } from "./projects"
 import { BOLD, DIM, theme } from "./theme"
@@ -68,6 +68,8 @@ function Sheet({ board, width, height }: { board: Board; width: number; height: 
       return <SaveDialog board={board} width={width} height={height} />
     case "help":
       return <HelpDialog width={width} height={height} />
+    case "agent":
+      return <AgentDialog board={board} width={width} height={height} />
     case "quitting":
       return <QuittingDialog board={board} width={width} height={height} />
     default:
@@ -126,6 +128,13 @@ function hints(board: Board): Hint[] {
         ["enter", "save"],
         ["esc", "cancel"],
       ]
+    case "agent":
+      return [
+        ["↑↓", "choose"],
+        ["enter", "open"],
+        ["1-9", "pick"],
+        ["esc", "cancel"],
+      ]
     case "help":
     case "quitting":
       return []
@@ -144,6 +153,7 @@ function hints(board: Board): Hint[] {
         ["n", "new"],
         ["e", "edit"],
         ["o", "open"],
+        ["i", "agent"],
         ["/", "filter"],
         ["?", "help"],
         ["q", "quit"],

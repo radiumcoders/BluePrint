@@ -1,5 +1,5 @@
 //! What opens under the board in place of the logs: the add/edit form, the
-//! save-logs prompt, help, and the notice shown while servers stop on the way
+//! save-logs prompt, the "open in" picker, help, and the notice shown while servers stop on the way
 //! out. Each is a section headed by a rule, like the details, so the board
 //! stays in view above it.
 
@@ -50,6 +50,8 @@ export function sheetRows(board: Board, width: number, height: number): number {
       return 1 + SAVE_ROWS
     case "help":
       return 1 + helpRows(width)
+    case "agent":
+      return 1 + agentRows(board, height)
     case "quitting":
       return 1 + QUITTING_ROWS
     default:
@@ -279,6 +281,49 @@ export function SaveDialog({ board, width, height }: { board: Board; width: numb
   )
 }
 
+/** Tools listed at once: all of them if the screen has room. */
+function agentListRows(board: Board, height: number): number {
+  return Math.max(1, Math.min(board.tools.length, height - 8))
+}
+
+/** A gap, the tools and a gap. */
+function agentRows(board: Board, height: number): number {
+  return 1 + agentListRows(board, height) + 1
+}
+
+export function AgentDialog({ board, width, height }: { board: Board; width: number; height: number }) {
+  const e = board.entry
+  const list = agentListRows(board, height)
+  const start = Math.max(0, Math.min(board.toolHighlight - list + 1, board.tools.length - list))
+  const visible = board.tools.slice(start, start + list)
+  const contentWidth = Math.min(56, width - GUTTER - 1)
+  return (
+    <Dialog title={`Open ${e?.project.name ?? ""} in`} width={contentWidth} rows={agentRows(board, height)} screen={[width, height]}>
+      {visible.map((tool, i) => {
+        const index = start + i
+        const on = index === board.toolHighlight
+        return (
+          <box
+            key={tool.name}
+            height={1}
+            flexDirection="row"
+            justifyContent="space-between"
+            backgroundColor={on ? theme.wellFocus : undefined}
+            onMouseDown={() => board.pickTool(index)}
+          >
+            <text wrapMode="none" fg={theme.text}>
+              <span fg={on ? theme.accent : theme.faint}>{on ? "› " : "  "}</span>
+              <span fg={theme.accent} attributes={BOLD}>{index < 9 ? `${index + 1}  ` : "   "}</span>
+              <span fg={theme.text} attributes={on ? BOLD : DIM}>{tool.name}</span>
+            </text>
+            <text fg={theme.faint}>{(tool.kind === "agent" ? "in a terminal" : "editor") + " "}</text>
+          </box>
+        )
+      })}
+    </Dialog>
+  )
+}
+
 const HELP: [string, string][][] = [
   [
     ["↑ ↓  j k", "select project"],
@@ -290,6 +335,7 @@ const HELP: [string, string][][] = [
     ["d  del", "remove (press twice)"],
     ["alt+↑↓  J K", "move up / down"],
     ["o  c", "open / copy URL"],
+    ["i", "open in editor / agent"],
   ],
   [
     ["/  ctrl+f", "filter logs"],
