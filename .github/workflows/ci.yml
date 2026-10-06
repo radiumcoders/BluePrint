@@ -1,7 +1,7 @@
 name: ci
 
-# Every push and pull request: lint and test on Linux and Windows, including
-# the end-to-end tests that start real Node, Python and Go servers.
+# Every push and pull request: typecheck and test on Linux and Windows,
+# including the end-to-end tests that start real Node, Python and Go servers.
 on:
   push:
     branches: ["**"]
@@ -26,19 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: oven-sh/setup-bun@v2
         with:
-          components: clippy
+          bun-version: 1.4.2
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libx11-xcb-dev \
-            libwayland-dev libvulkan-dev libfontconfig1-dev libfreetype-dev
+      - name: Install
+        run: bun install --frozen-lockfile
 
       # Toolchains for the end-to-end tests.
       - uses: actions/setup-node@v4
@@ -52,8 +45,13 @@ jobs:
           go-version: stable
           cache: false
 
-      - name: Clippy
-        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Typecheck
+        run: bun run typecheck
 
       - name: Test
-        run: cargo test --locked -- --include-ignored
+        run: bun test
+        env:
+          BLUEPRINT_E2E: "1"
+
+      - name: Build
+        run: bun run build

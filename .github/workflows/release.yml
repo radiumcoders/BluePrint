@@ -1,8 +1,8 @@
 name: release
 
-# Push a tag like v0.3.0 to build Windows binaries and a Linux AppImage and
-# publish them as a GitHub release. Running it by hand builds the same files
-# as workflow artifacts without releasing anything.
+# Push a tag like v0.3.0 to build single-file binaries for Linux and Windows
+# and publish them as a GitHub release. Running it by hand builds the same
+# files as workflow artifacts without releasing anything.
 on:
   push:
     tags: ["v*"]
@@ -12,87 +12,57 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+          - os: windows-latest
+            platform: windows-x86_64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Install
+        run: bun install --frozen-lockfile
 
       - name: Test
-        run: cargo test --locked
+        run: bun test
 
+      # Each platform builds on its own runner, so the binary embeds that
+      # platform's OpenTUI native library.
       - name: Build
-        run: cargo build --release --locked
+        run: bun run build
 
       - name: Package
-        shell: pwsh
-        run: |
-          $version = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0, 7))" }
-          $name = "blueprint-$version-windows-x86_64"
-          New-Item -ItemType Directory -Path "dist/$name" | Out-Null
-          Copy-Item target/release/blueprint.exe "dist/$name/"
-          Copy-Item README.md "dist/$name/"
-          if (Test-Path LICENSE) { Copy-Item LICENSE "dist/$name/" }
-          Compress-Archive -Path "dist/$name/*" -DestinationPath "dist/$name.zip"
-          Copy-Item target/release/blueprint.exe "dist/$name.exe"
-          Remove-Item -Recurse "dist/$name"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: blueprint-windows
-          path: dist/*
-
-  linux:
-    # The oldest supported runner, so the AppImage runs on glibc 2.35 and newer.
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libx11-xcb-dev \
-            libwayland-dev libvulkan-dev libfontconfig1-dev libfreetype-dev libfuse2
-
-      - name: Test
-        run: cargo test --locked
-
-      - name: Build
-        run: cargo build --release --locked
-
-      - name: Package AppImage
-        env:
-          # linuxdeploy is itself an AppImage; this avoids needing FUSE to run it.
-          APPIMAGE_EXTRACT_AND_RUN: "1"
+        shell: bash
         run: |
           if [ "$GITHUB_REF_TYPE" = tag ]; then version="$GITHUB_REF_NAME"; else version="dev-${GITHUB_SHA::7}"; fi
-          curl -sSfL -o linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy
-          mkdir -p icon dist
-          cp assets/icon.png icon/blueprint.png
-          LINUXDEPLOY_OUTPUT_VERSION="$version" ./linuxdeploy --appdir AppDir \
-            --executable target/release/blueprint \
-            --desktop-file packaging/linux/blueprint.desktop \
-            --icon-file icon/blueprint.png \
-            --output appimage
-          mv blueprint-*.AppImage "dist/blueprint-$version-linux-x86_64.AppImage"
+          name="blueprint-$version-${{ matrix.platform }}"
+          mkdir -p "pkg/$name" release
+          if [ "$RUNNER_OS" = Windows ]; then
+            cp dist/blueprint.exe README.md "pkg/$name/"
+            (cd pkg && 7z a "../release/$name.zip" "$name" > /dev/null)
+            cp dist/blueprint.exe "release/$name.exe"
+          else
+            cp dist/blueprint README.md "pkg/$name/"
+            tar -czf "release/$name.tar.gz" -C pkg "$name"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: blueprint-linux
-          path: dist/*
+          name: blueprint-${{ matrix.platform }}
+          path: release/*
 
   release:
     if: github.ref_type == 'tag'
-    needs: [windows, linux]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

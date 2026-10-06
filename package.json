@@ -1,0 +1,27 @@
+{
+  "name": "blueprint",
+  "version": "0.3.0",
+  "description": "Run many dev servers at once, each on its own port, from one terminal.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "blueprint": "src/main.tsx"
+  },
+  "scripts": {
+    "start": "bun src/main.tsx",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "build": "bun build --compile --minify src/main.tsx --outfile dist/blueprint"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.5.14",
+    "@opentui/react": "^0.5.14",
+    "react": "^19.3.0",
+    "smol-toml": "^1.9.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}
