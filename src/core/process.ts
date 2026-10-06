@@ -12,7 +12,7 @@ export { STOP_GRACE_MS } from "./timing"
 export const MAX_LINE = 4096
 
 /** Ports handed out to projects without a fixed one. */
-export const AUTO_PORTS = { start: 4000, end: 4999 }
+export const AUTO_PORTS = { start: 3000, end: 3999 }
 
 export interface ExitStatus {
   /** `null` when killed by a signal. */

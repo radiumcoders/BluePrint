@@ -1,23 +1,19 @@
 //! The log console: the selected project's retained lines, drawn a screen at
-//! a time so thousands of lines stay fast, with a filter.
+//! a time so thousands of lines stay fast, with a filter. Its rule, with the
+//! line count, is drawn by the details strip above it.
 
 import { TextAttributes } from "@opentui/core"
 import { parse, strip } from "../core/ansi"
-import { MAX_LOG_LINES } from "../core/manager"
 import type { Board } from "./board"
-import { ansiColor, theme } from "./theme"
+import { GUTTER } from "./projects"
+import { ansiColor, BOLD, DIM, theme } from "./theme"
 
 export function Logs({ board }: { board: Board }) {
   const e = board.entry
   const index = board.index
   const shown = index.lines.length
-  const total = e?.logs.length ?? 0
-  let count = ""
-  if (e && total > 0) {
-    count = index.filtering() ? `${shown} of ${total} lines` : `${total} lines`
-    if (e.logStart > 0) count += ` · keeps the last ${MAX_LOG_LINES}`
-  }
-  const filterRow = board.mode === "filter" || board.filter !== ""
+  const filtering = board.mode === "filter"
+  const filterRow = filtering || board.filter !== ""
   const rows: string[] = []
   if (e) for (let i = board.top; i < Math.min(shown, board.top + board.viewRows); i++) rows.push(index.line(e, i) ?? "")
 
@@ -29,16 +25,9 @@ export function Logs({ board }: { board: Board }) {
   return (
     <box
       flexGrow={1}
-      minHeight={3}
-      border
-      borderStyle="rounded"
-      borderColor={board.mode === "filter" ? theme.accent : theme.border}
-      title={" Logs "}
-      titleAlignment="left"
-      bottomTitle={count ? ` ${count}${board.follow || !shown ? "" : " · end ↓ latest"} ` : undefined}
-      bottomTitleAlignment="right"
+      minHeight={1}
       flexDirection="column"
-      paddingLeft={1}
+      paddingLeft={GUTTER}
       paddingRight={1}
       onMouseScroll={(ev) => {
         const dir = ev.scroll?.direction
@@ -48,29 +37,36 @@ export function Logs({ board }: { board: Board }) {
     >
       {filterRow && (
         <box height={1} flexDirection="row">
-          <text fg={board.mode === "filter" ? theme.accent : theme.muted}>{"/ "}</text>
-          {board.mode === "filter" ? (
+          <text fg={filtering ? theme.accent : theme.faint} attributes={BOLD}>
+            {"/ "}
+          </text>
+          {filtering ? (
             <input
               flexGrow={1}
               value={board.filter}
               focused
               placeholder="filter logs"
               textColor={theme.text}
+              focusedTextColor={theme.text}
               placeholderColor={theme.faint}
               backgroundColor={theme.bg}
               focusedBackgroundColor={theme.bg}
-              cursorColor={theme.accent}
+              cursorColor={theme.cursor}
               onInput={(v) => board.setFilter(v)}
             />
           ) : (
-            <text wrapMode="none">
+            <text wrapMode="none" fg={theme.text}>
               <span fg={theme.text}>{board.filter}</span>
               <span fg={theme.faint}>{"   / edit · esc clear"}</span>
             </text>
           )}
         </box>
       )}
-      {hint && <text fg={theme.muted}>{hint}</text>}
+      {hint && (
+        <text fg={theme.text} attributes={DIM}>
+          {hint}
+        </text>
+      )}
       {rows.map((raw, i) => (
         <LogLine key={board.top + i} raw={raw} query={index.query} />
       ))}
@@ -84,7 +80,7 @@ export function Logs({ board }: { board: Board }) {
  * plain with the matches marked.
  */
 function LogLine({ raw, query }: { raw: string; query: string }) {
-  if (!raw) return <text> </text>
+  if (!raw) return <text fg={theme.text}> </text>
   if (query) {
     const text = strip(raw)
     const lower = text.toLowerCase()
@@ -102,10 +98,10 @@ function LogLine({ raw, query }: { raw: string; query: string }) {
       parts.push({ text, match: false })
     }
     return (
-      <text wrapMode="none">
+      <text wrapMode="none" fg={theme.text}>
         {parts.map((p, i) =>
           p.match ? (
-            <span key={i} fg={theme.onAccent} bg={theme.accent}>
+            <span key={i} fg={theme.onAccent} bg={theme.accent} attributes={BOLD}>
               {p.text}
             </span>
           ) : (
@@ -133,7 +129,7 @@ function LogLine({ raw, query }: { raw: string; query: string }) {
   }
   const runs = parse(raw)
   return (
-    <text wrapMode="none">
+    <text wrapMode="none" fg={theme.text}>
       {runs.map((r, i) => {
         let attributes = TextAttributes.NONE
         if (r.style.bold) attributes |= TextAttributes.BOLD

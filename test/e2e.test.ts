@@ -57,7 +57,7 @@ describe.skipIf(!enabled)("end to end", () => {
       "package.json": '{"name":"e2e","scripts":{"dev":"node server.js"}}',
       "server.js": NODE_SERVER,
     })
-    await run("node", dir, "", "hello from node", 4960, 30_000)
+    await run("node", dir, "", "hello from node", 3960, 30_000)
   }, 40_000)
 
   /** A dev script whose tool ignores `PORT` and must be passed `--port`, the way Vite is. */
@@ -72,13 +72,13 @@ describe.skipIf(!enabled)("end to end", () => {
     })
     if (process.platform !== "win32") chmodSync(join(dir, "node_modules/.bin/vite"), 0o755)
     expect(devScriptCommand(dir)).toBe("npm run dev -- --port $PORT --strictPort")
-    await run("vite", dir, "", "hello from node", 4965, 30_000)
+    await run("vite", dir, "", "hello from node", 3965, 30_000)
   }, 40_000)
 
   test("a static site", async () => {
     needs(PYTHON)
     const dir = projectDir("e2e-static", { "index.html": "<p>hello from a static site</p>" })
-    await run("static", dir, `${PYTHON} -m http.server $PORT --bind 127.0.0.1`, "hello from a static site", 4970, 30_000)
+    await run("static", dir, `${PYTHON} -m http.server $PORT --bind 127.0.0.1`, "hello from a static site", 3970, 30_000)
   }, 40_000)
 
   test("a go module that reads PORT", async () => {
@@ -99,6 +99,6 @@ func main() {
 `,
     })
     // \`go run\` compiles first, which can take a while on a cold cache.
-    await run("go", dir, "go run .", "hello from go", 4975, 180_000)
+    await run("go", dir, "go run .", "hello from go", 3975, 180_000)
   }, 200_000)
 })

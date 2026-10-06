@@ -9,7 +9,7 @@ import * as platform from "./core/platform"
 import { STOP_GRACE_MS } from "./core/timing"
 import { App } from "./ui/app"
 import { Board } from "./ui/board"
-import { theme } from "./ui/theme"
+import { applyTerminalColors, theme } from "./ui/theme"
 
 const args = process.argv.slice(2)
 if (args[0] === guardian.FLAG) await guardian.run()
@@ -74,6 +74,20 @@ process.on("uncaughtException", (e) => {
   console.error("blueprint crashed:", e)
   process.exit(1)
 })
+
+// The quiet fills are mixed from the terminal's own colors. Ask for them now,
+// and again when its theme may have changed: OpenTUI re-asks on a light/dark
+// switch, and coming back to the window catches a switch between two themes.
+renderer.on("palette", (colors) => {
+  applyTerminalColors(colors)
+  board.changed()
+})
+const askPalette = () => renderer.getPalette({ timeout: 1000 }).catch(() => {})
+renderer.on("focus", () => {
+  renderer.clearPaletteCache()
+  void askPalette()
+})
+void askPalette()
 
 setInterval(() => board.tick(), 100)
 createRoot(renderer).render(<App board={board} onCopy={copy} />)

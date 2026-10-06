@@ -4,28 +4,29 @@ A terminal app for running many dev servers at once. Each project gets its own p
 (fixed, or picked for it), live logs, and a link to `http://localhost:PORT`.
 
 ```
- ◆ blueprint  v0.3.0                                                  ● 2 running  ·  3 projects
-╭─ Projects ─────────────────╮╭─ shop ───────────────────────────────────────────────────────────╮
-│ ▌● shop               4000 ││  ● running  ·  up 4m                      http://localhost:4000  │
-│  ● docs               4001 ││  folder   ~/Projects/shop                                        │
-│  ✕ api                4321 ││  command  npm run dev                                            │
-│                            ││  port     4000 (auto)     pid 48213                              │
-│                            │╰──────────────────────────────────────────────────────────────────╯
-│                            │╭─ Logs ───────────────────────────────────────────────────────────╮
-│                            ││ $ PORT=4000 npm run dev                                          │
-│                            ││                                                                  │
-│                            ││ > dev                                                            │
-│                            ││ > next dev                                                       │
-│                            ││                                                                  │
-│                            ││ ready on http://localhost:4000                                   │
-│                            ││ GET / 200 in 41ms                                                │
-╰────────────────────────────╯╰────────────────────────────────────────────────────── 7 lines ─╯
- enter stop   r restart   n new   e edit   o open   / filter   ? help   q quit
+  ◆ blueprint  v0.3.0                                                ● 2 running  ·  3 projects
+
+  PORT    PROJECT   STATUS            UPTIME    COMMAND
+▌ 3000    shop      ● RUNNING         4m        npm run dev
+  3001    docs      ● RUNNING         12s       npm run dev
+  4321    api       ✕ CRASHED         exit 1    go run .
+
+── shop ── http://localhost:3000 ── ~/Projects/shop ── pid 48213 ──────────────────── 7 lines ──
+  $ PORT=3000 npm run dev
+
+  > dev
+  > next dev
+
+  ready on http://localhost:3000
+  GET / 200 in 41ms
+
+  enter stop   r restart   n new   e edit   o open   / filter   ? help   q quit
 ```
 
 Built with [Bun](https://bun.sh) and [OpenTUI](https://github.com/anomalyco/opentui) (its React
-renderer). The look is a calm dark sheet with one blueprint-blue accent, and color only where
-it means something: status, the focused thing, the main action.
+renderer). It wears your terminal's theme: text and background are the terminal's own, every
+color is a slot in its palette, and color appears only where it means something: status, the
+focused thing, the main action. Switch the terminal's theme and blueprint follows.
 
 ## Requirements
 
@@ -65,19 +66,20 @@ Run `blueprint` in a terminal.
   - **name**: what the project is called in the list. It defaults to the package.json name or
     the folder name.
   - **port**: a fixed port for the dev server. Leave it blank and blueprint picks a free one
-    from 4000–4999, keeping the same one across restarts while it's free.
+    from 3000–3999, keeping the same one across restarts while it's free.
   - **command**: filled in from the folder (see below). Leave it blank to run the package.json
     `dev` script, or enter anything, like `pnpm dev`. Shell syntax (`&&`, `|`, `$PORT`) works.
   - `Tab` moves between fields, `Enter` saves, `Esc` cancels.
 - **Run them**: `Enter` starts or stops the selected project; `a` starts all and `x` stops all.
   Run as many as you like. A project shows *starting* until its server accepts connections,
   then *running*.
-- **Details and logs**: the selected project's URL, folder, command, port, PID and uptime sit
-  above its live, colored logs. The console keeps the last 5000 lines and follows the newest
+- **The board**: every project on one line, port first: its port (`auto` until an automatic
+  one is picked), status, uptime or exit code, and command. Under it, a rule carries the selected
+  project's name, URL, folder and PID, and heads its live, colored logs. The console keeps the last 5000 lines and follows the newest
   until you scroll up (`PgUp`, `g`, or the mouse wheel; `G` or `End` follows again). Filter it
   with `/` (case-insensitive; `Esc` clears it), copy the lines shown with `y`, or save them to a
   file with `w`.
-- **Editing a running project** changes nothing until you restart it: the details keep showing
+- **Editing a running project** changes nothing until you restart it: the board keeps showing
   the port, URL and command it runs with, marked "edited, restart to apply".
 - **Mouse**: click a project to select it, click a running project's URL to open it, scroll the
   logs, and drag over text to copy it.
@@ -94,7 +96,7 @@ Run `blueprint` in a terminal.
 | `Alt+↑` `Alt+↓` / `J` `K` | move the project up / down |
 | `o` / `c` | open in the browser / copy the URL |
 | `/` or `Ctrl+F` | filter logs |
-| `Esc` | clear the filter, close a dialog |
+| `Esc` | clear the filter, close the form, help or a prompt |
 | `PgUp` `PgDn`, `Ctrl+U` `Ctrl+D` | scroll logs |
 | `g` / `G` | oldest / newest line |
 | `y` / `w` | copy / save the lines shown |
@@ -110,7 +112,7 @@ The config is stored at `~/.config/blueprint/config.toml` (`%APPDATA%\blueprint\
 Windows). Set `BLUEPRINT_CONFIG` to use a different file. `blueprint --help` prints the path.
 
 ```toml
-projects_root = "~/Projects"   # where the add dialog looks for folders
+projects_root = "~/Projects"   # where the add form looks for folders
 
 [[projects]]
 name = "shop"

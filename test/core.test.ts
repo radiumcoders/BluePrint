@@ -250,8 +250,8 @@ describe("output lines", () => {
     expect(freePort(undefined, [first])).not.toBe(first)
     // A preferred port outside the range isn't handed out.
     expect(freePort(80, [])).not.toBe(80)
-    const held = Bun.listen({ hostname: "127.0.0.1", port: 4999, socket: { data() {} } })
-    expect(freePort(4999, [])).not.toBe(4999)
+    const held = Bun.listen({ hostname: "127.0.0.1", port: AUTO_PORTS.end, socket: { data() {} } })
+    expect(freePort(AUTO_PORTS.end, [])).not.toBe(AUTO_PORTS.end)
     held.stop(true)
   })
 

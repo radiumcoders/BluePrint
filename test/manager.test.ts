@@ -80,14 +80,14 @@ describe("servers", () => {
   /** Starts a server and waits until it answers on the port it was given in `PORT`. */
   test("runs a server on its port", async () => {
     const m = manager("run")
-    const id = addHelper(m, "web", "serve", 4900)
+    const id = addHelper(m, "web", "serve", 3900)
     m.start(id)
     await waitUntil(m, id, SOON, "running", (m) => m.get(id)!.status() === "running")
     const e = m.get(id)!
-    expect(e.port()).toBe(4900)
-    expect(e.url()).toBe("http://localhost:4900")
-    expect(e.logs[0]!.startsWith("$ PORT=4900 BLUEPRINT_HELPER=serve")).toBe(true)
-    expect(await (await fetch("http://127.0.0.1:4900")).text()).toBe("ok")
+    expect(e.port()).toBe(3900)
+    expect(e.url()).toBe("http://localhost:3900")
+    expect(e.logs[0]!.startsWith("$ PORT=3900 BLUEPRINT_HELPER=serve")).toBe(true)
+    expect(await (await fetch("http://127.0.0.1:3900")).text()).toBe("ok")
     await m.shutdown()
     expect(m.runningCount()).toBe(0)
   })
@@ -95,16 +95,16 @@ describe("servers", () => {
   /** Edits to a running project wait for a restart: until then its URL is the port it really listens on. */
   test("edits apply on restart", async () => {
     const m = manager("edit")
-    const id = addHelper(m, "web", "serve", 4910)
+    const id = addHelper(m, "web", "serve", 3910)
     m.start(id)
     await waitUntil(m, id, SOON, "running", (m) => m.get(id)!.status() === "running")
-    m.update(id, { ...m.get(id)!.project, port: 4911 })
+    m.update(id, { ...m.get(id)!.project, port: 3911 })
     const e = m.get(id)!
     expect(e.editedWhileRunning()).toBe(true)
-    expect(e.url()).toBe("http://localhost:4910")
+    expect(e.url()).toBe("http://localhost:3910")
     expect(m.message!.text).toContain("Restart web")
     m.restart(id)
-    await waitUntil(m, id, SOON, "the restart", (m) => m.get(id)!.port() === 4911 && m.get(id)!.status() === "running")
+    await waitUntil(m, id, SOON, "the restart", (m) => m.get(id)!.port() === 3911 && m.get(id)!.status() === "running")
     expect(m.get(id)!.editedWhileRunning()).toBe(false)
     await m.shutdown()
   })
@@ -116,7 +116,7 @@ describe("servers", () => {
    */
   test("stops what the command leaves behind", async () => {
     const m = manager("orphan")
-    const id = addHelper(m, "orphan", "orphan", 4920)
+    const id = addHelper(m, "orphan", "orphan", 3920)
     m.start(id)
     await waitUntil(m, id, SOON, "the shell to exit", (m) => logged(m, id, "stopping what it left running"))
     const line = m.get(id)!.logs.find((l) => l.startsWith("child "))
@@ -144,7 +144,7 @@ describe("servers", () => {
   /** Far more output than the log keeps: memory stays bounded, a huge line is cut, and the newest lines survive. */
   test("output floods stay bounded", async () => {
     const m = manager("flood")
-    const id = addHelper(m, "flood", "flood", 4930)
+    const id = addHelper(m, "flood", "flood", 3930)
     m.start(id)
     let biggestBatch = 0
     const deadline = performance.now() + 60_000
@@ -174,7 +174,7 @@ describe("servers", () => {
   /** Removing a running project stops its server without blocking. */
   test("removing stops the server", async () => {
     const m = manager("remove")
-    const id = addHelper(m, "web", "serve", 4945)
+    const id = addHelper(m, "web", "serve", 3945)
     m.start(id)
     await waitUntil(m, id, SOON, "running", (m) => m.get(id)!.status() === "running")
     const started = performance.now()
@@ -182,14 +182,14 @@ describe("servers", () => {
     expect(performance.now() - started).toBeLessThan(500)
     expect(m.get(id)).toBeUndefined()
     const deadline = performance.now() + STOP_GRACE_MS + 2000
-    while (portInUse(4945) && performance.now() < deadline) await Bun.sleep(50)
-    expect(portInUse(4945)).toBe(false)
+    while (portInUse(3945) && performance.now() < deadline) await Bun.sleep(50)
+    expect(portInUse(3945)).toBe(false)
   }, 15_000)
 
   /** Invalid UTF-8 and broken escapes come through as lines and parse without throwing. */
   test("malformed output", async () => {
     const m = manager("malformed")
-    const id = addHelper(m, "bytes", "malformed", 4940)
+    const id = addHelper(m, "bytes", "malformed", 3940)
     m.start(id)
     await waitUntil(m, id, SOON, "exit", (m) => !m.get(id)!.isActive() && logged(m, id, "malformed done"))
     const e = m.get(id)!
@@ -202,22 +202,22 @@ describe("servers", () => {
   /** A server that stops accepting connections is noticed. */
   test("notices a server that stops responding", async () => {
     const m = manager("unresponsive")
-    const id = addHelper(m, "flaky", "serve-briefly", 4950)
+    const id = addHelper(m, "flaky", "serve-briefly", 3950)
     m.start(id)
     await waitUntil(m, id, SOON, "running", (m) => m.get(id)!.status() === "running")
     await waitUntil(m, id, SOON, "not responding", (m) => m.get(id)!.status() === "unresponsive")
-    expect(logged(m, id, "port 4950 stopped accepting connections")).toBe(true)
+    expect(logged(m, id, "port 3950 stopped accepting connections")).toBe(true)
     await m.shutdown()
   }, 35_000)
 
   test("a fixed port that's taken is refused", async () => {
     const m = manager("busy")
-    const held = Bun.listen({ hostname: "127.0.0.1", port: 4955, socket: { data() {} } })
-    const id = m.add({ name: "busy", path: tmpdir(), port: 4955, command: "x" })
+    const held = Bun.listen({ hostname: "127.0.0.1", port: 3955, socket: { data() {} } })
+    const id = m.add({ name: "busy", path: tmpdir(), port: 3955, command: "x" })
     m.start(id)
     expect(m.get(id)!.isActive()).toBe(false)
     expect(m.message).toMatchObject({ kind: "error" })
-    expect(m.message!.text).toContain("Port 4955 is already in use")
+    expect(m.message!.text).toContain("Port 3955 is already in use")
     held.stop(true)
   })
 })

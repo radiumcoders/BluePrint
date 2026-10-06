@@ -136,8 +136,9 @@ test("details, help and removal", async () => {
   const { m, frame, keys } = await setup({ projects: true })
   let f = await frame()
   expect(f).toContain("http://localhost:3000")
-  expect(f).toContain("3000 (fixed)")
-  expect(f).toContain("npm run dev")
+  // The board: port, name, status and command on one line.
+  expect(f).toMatch(/3000 +shop +○ STOPPED +npm run dev/)
+  expect(f).toMatch(/auto +api +○ STOPPED +go run \./)
   expect(f).toContain("Not running. Press enter to start it.")
 
   await keys("?")
@@ -201,20 +202,20 @@ test("the console follows new lines until scrolled up", async () => {
 test("narrow terminals still lay out", async () => {
   const { frame } = await setup({ projects: true, width: 60, height: 16 })
   const f = await frame()
-  expect(f).toContain("shop")
-  expect(f).toContain("Logs")
+  expect(f).toMatch(/3000 +shop +○ STOPPED/)
+  expect(f).toContain("── shop ── http://localhost:3000")
 })
 
 test("the mouse: clicking selects, the wheel scrolls, dragging copies", async () => {
   const { board, m, frame, log, mouse, selections, opened } = await setup({ projects: true, height: 24 })
   await frame()
-  // The second project's row: below the header and the panel's top border.
-  await mouse((mm) => mm.click(5, 3))
+  // The second project's row: under the top line, a gap, the column heads and the first.
+  await mouse((mm) => mm.click(5, 4))
   expect(board.selected).toBe(m.entries[1]!.id)
   expect(selections).toEqual([])
   expect(await frame()).not.toContain("Copied")
 
-  await mouse((mm) => mm.click(5, 2))
+  await mouse((mm) => mm.click(5, 3))
   await log(0, ...Array.from({ length: 100 }, (_, i) => `line ${i}`))
   await mouse((mm) => mm.scroll(60, 15, "up"))
   expect(board.follow).toBe(false)
@@ -222,7 +223,7 @@ test("the mouse: clicking selects, the wheel scrolls, dragging copies", async ()
   await mouse((mm) => mm.scroll(60, 15, "down"))
   expect(board.follow).toBe(true)
 
-  await mouse((mm) => mm.drag(32, 10, 45, 10))
+  await mouse((mm) => mm.drag(2, 10, 12, 10))
   expect(selections.length).toBe(1)
   expect(selections[0]!.trim()).not.toBe("")
   expect(opened).toEqual([])

@@ -1,53 +1,65 @@
-//! Everything that floats over the board: the add/edit form, the save-logs
-//! prompt, help, and the notice shown while servers stop on the way out.
+//! What opens under the board in place of the logs: the add/edit form, the
+//! save-logs prompt, help, and the notice shown while servers stop on the way
+//! out. Each is a section headed by a rule, like the details, so the board
+//! stays in view above it.
 
-import { TextAttributes } from "@opentui/core"
 import type { ReactNode } from "react"
 import { displayPath } from "../core/config"
 import { tagsFor } from "../core/folders"
 import { AUTO_PORTS } from "../core/process"
 import { devScriptCommand, hasDevScript } from "../core/stack"
 import type { Board, Form, FormField } from "./board"
-import { theme, truncStart } from "./theme"
+import pkg from "../../package.json"
+import { GUTTER } from "./projects"
+import { BOLD, DIM, theme, truncStart } from "./theme"
 
 const LABEL = 10
 
-/** A centered, bordered sheet above the board. */
-function Dialog(props: { title: string; width: number; height: number; screen: [number, number]; children: ReactNode }) {
-  const [w, h] = props.screen
-  const width = Math.min(props.width, w - 2)
-  const height = Math.min(props.height, h - 2)
+/** A section under a rule with its title; `rows` counts the gap under the rule. */
+function Dialog(props: { title: string; width: number; rows: number; screen: [number, number]; children: ReactNode }) {
+  const [w] = props.screen
+  const fill = Math.max(1, w - 3 - props.title.length - 1)
   return (
-    <>
-      {/* Dim the board behind, so the dialog is the one thing to look at. */}
-      <box position="absolute" left={0} top={0} width={w} height={h} zIndex={9} backgroundColor={theme.backdrop} />
+    <box flexDirection="column" flexShrink={0}>
+      <text wrapMode="none" fg={theme.accent}>
+        <span fg={theme.accent}>{"── "}</span>
+        <span fg={theme.accent} attributes={BOLD}>
+          {props.title}
+        </span>
+        <span fg={theme.accent}>{" " + "─".repeat(fill)}</span>
+      </text>
       <box
-      position="absolute"
-      left={Math.max(0, Math.floor((w - width) / 2))}
-      top={Math.max(0, Math.floor((h - height) / 2))}
-      width={width}
-      height={height}
-      zIndex={10}
-      border
-      borderStyle="rounded"
-      borderColor={theme.accent}
-      backgroundColor={theme.overlay}
-      title={` ${props.title} `}
-      titleAlignment="left"
-      flexDirection="column"
-      paddingLeft={2}
-      paddingRight={2}
-      paddingTop={1}
-    >
-      {props.children}
+        height={props.rows}
+        width={Math.min(props.width, w - GUTTER - 1) + GUTTER}
+        flexDirection="column"
+        paddingLeft={GUTTER}
+        paddingTop={1}
+      >
+        {props.children}
       </box>
-    </>
+    </box>
   )
+}
+
+/** Rows the open section takes, its rule included, or 0 when none is open. */
+export function sheetRows(board: Board, width: number, height: number): number {
+  switch (board.mode) {
+    case "form":
+      return board.form ? 1 + formRows(board.form, height) : 0
+    case "save":
+      return 1 + SAVE_ROWS
+    case "help":
+      return 1 + helpRows(width)
+    case "quitting":
+      return 1 + QUITTING_ROWS
+    default:
+      return 0
+  }
 }
 
 function Label({ text, focused }: { text: string; focused: boolean }) {
   return (
-    <text fg={focused ? theme.accent : theme.muted} attributes={focused ? TextAttributes.BOLD : TextAttributes.NONE}>
+    <text fg={focused ? theme.accent : theme.text} attributes={focused ? BOLD : DIM}>
       {text.padEnd(LABEL)}
     </text>
   )
@@ -100,27 +112,37 @@ function Field(props: {
         placeholderColor={theme.faint}
         backgroundColor={theme.well}
         focusedBackgroundColor={theme.wellFocus}
-        cursorColor={theme.accent}
+        cursorColor={theme.cursor}
         onInput={(v) => board.setField(field, v)}
       />
     </box>
   )
 }
 
+/** Folders listed while picking: sized by every folder, not the matches, so the form holds still while typing. */
+function listRows(form: Form, height: number): number {
+  return Math.max(3, Math.min(8, form.folders.length, height - 24))
+}
+
+function formRows(form: Form, height: number): number {
+  const folderRows = form.picking || !form.folder ? 1 + listRows(form, height) + 1 : 2
+  // A gap, the folder, three fields with their notes, a gap and the buttons.
+  return 1 + folderRows + 2 * 3 + 1 + 1
+}
+
 export function ProjectForm({ board, form, width, height }: { board: Board; form: Form; width: number; height: number }) {
-  const dialogWidth = Math.min(78, width - 2)
-  const inputWidth = dialogWidth - 4 - 2 - LABEL
+  const contentWidth = Math.min(76, width - GUTTER - 1)
+  const inputWidth = contentWidth - LABEL
   const err = (f: FormField) => (form.error?.field === f ? form.error.message : undefined)
-  // Sized by every folder, not the matches, so the dialog holds still while typing.
-  const listRows = Math.max(3, Math.min(8, form.folders.length, height - 24))
+  const list = listRows(form, height)
   const picking = form.focus === "folder" && form.picking
   const showPicker = form.picking || !form.folder
 
   // Folder: a filter over the projects root while picking, else the choice.
   const matches = board.matches()
-  const first = Math.max(0, Math.min(form.highlight - listRows + 1, matches.length - listRows))
+  const first = Math.max(0, Math.min(form.highlight - list + 1, matches.length - list))
   const start = Math.max(0, Math.min(first, form.highlight))
-  const visible = matches.slice(start, start + listRows)
+  const visible = matches.slice(start, start + list)
 
   const port = form.port.trim()
   const portNote = /^\d+$/.test(port) && Number(port) > 0 ? `→ http://localhost:${port}` : `auto: ${AUTO_PORTS.start}–${AUTO_PORTS.end}`
@@ -137,12 +159,10 @@ export function ProjectForm({ board, form, width, height }: { board: Board; form
   }
 
   const folderTags = form.folder ? tagsFor(form.folder).join(" ") : ""
-  const folderRows = showPicker ? 1 + listRows + 1 : 2
-  // Borders, top padding, the folder, three fields with their notes, a gap, the buttons and a bottom margin.
-  const dialogHeight = 2 + 1 + folderRows + 2 * 3 + 1 + 1 + 1
+  const folderRows = showPicker ? 1 + list + 1 : 2
 
   return (
-    <Dialog title={form.editing === undefined ? "New project" : "Edit project"} width={dialogWidth} height={dialogHeight} screen={[width, height]}>
+    <Dialog title={form.editing === undefined ? "New project" : "Edit project"} width={contentWidth} rows={formRows(form, height)} screen={[width, height]}>
       {showPicker ? (
         <box flexDirection="column" height={folderRows}>
           <box height={1} flexDirection="row">
@@ -157,11 +177,11 @@ export function ProjectForm({ board, form, width, height }: { board: Board; form
               placeholderColor={theme.faint}
               backgroundColor={theme.well}
               focusedBackgroundColor={theme.wellFocus}
-              cursorColor={theme.accent}
+              cursorColor={theme.cursor}
               onInput={(v) => board.setField("query", v)}
             />
           </box>
-          <box flexDirection="column" height={listRows} paddingLeft={LABEL}>
+          <box flexDirection="column" height={list} paddingLeft={LABEL}>
             {visible.length === 0 && (
               <text fg={theme.faint} wrapMode="none">
                 {`Nothing matches in ${displayPath(board.m.config.projectsRoot)}`}
@@ -178,9 +198,9 @@ export function ProjectForm({ board, form, width, height }: { board: Board; form
                   backgroundColor={on ? theme.wellFocus : undefined}
                   onMouseDown={() => board.pickFolder(f.path)}
                 >
-                  <text wrapMode="none">
+                  <text wrapMode="none" fg={theme.text}>
                     <span fg={on ? theme.accent : theme.faint}>{on ? "› " : "  "}</span>
-                    <span fg={on ? theme.text : theme.muted}>{f.name}</span>
+                    <span fg={theme.text} attributes={on ? BOLD : DIM}>{f.name}</span>
                   </text>
                   <text fg={theme.faint}>{f.tags.join(" ") + " "}</text>
                 </box>
@@ -203,7 +223,7 @@ export function ProjectForm({ board, form, width, height }: { board: Board; form
             }}
           >
             <Label text="Folder" focused={form.focus === "folder"} />
-            <text wrapMode="none">
+            <text wrapMode="none" fg={theme.text}>
               <span fg={theme.text}>{truncStart(displayPath(form.folder!), inputWidth - 2 - folderTags.length)}</span>
               <span fg={theme.faint}>{"  " + folderTags}</span>
             </text>
@@ -221,12 +241,12 @@ export function ProjectForm({ board, form, width, height }: { board: Board; form
       <Field board={board} form={form} field="command" label="Command" placeholder="detected from the folder" width={inputWidth} />
       <Note error={err("command")}>{commandNote}</Note>
       <box height={1} />
-      <box height={1} flexDirection="row" justifyContent="flex-end">
-        <text onMouseDown={() => board.closeForm()}>
-          <span fg={theme.text}>esc</span>
-          <span fg={theme.muted}>{" cancel    "}</span>
+      <box height={1} flexDirection="row" justifyContent="flex-end" width={contentWidth}>
+        <text onMouseDown={() => board.closeForm()} fg={theme.text}>
+          <span fg={theme.text} attributes={BOLD}>esc</span>
+          <span fg={theme.text} attributes={DIM}>{" cancel    "}</span>
         </text>
-        <text onMouseDown={() => board.saveForm()} bg={theme.accent} fg={theme.onAccent} attributes={TextAttributes.BOLD}>
+        <text onMouseDown={() => board.saveForm()} bg={theme.accent} fg={theme.onAccent} attributes={BOLD}>
           {form.editing === undefined ? " enter  add project " : " enter  save "}
         </text>
       </box>
@@ -234,22 +254,25 @@ export function ProjectForm({ board, form, width, height }: { board: Board; form
   )
 }
 
+/** A gap, the question, a gap and the path. */
+const SAVE_ROWS = 4
+
 export function SaveDialog({ board, width, height }: { board: Board; width: number; height: number }) {
   const n = board.index.lines.length
-  const dialogWidth = Math.min(72, width - 2)
+  const contentWidth = Math.min(72, width - GUTTER - 1)
   return (
-    <Dialog title="Save logs" width={dialogWidth} height={7} screen={[width, height]}>
-      <text fg={theme.muted}>{`Write the ${n} line${n === 1 ? "" : "s"} shown, as plain text, to:`}</text>
+    <Dialog title="Save logs" width={contentWidth} rows={SAVE_ROWS} screen={[width, height]}>
+      <text fg={theme.text} attributes={DIM}>{`Write the ${n} line${n === 1 ? "" : "s"} shown, as plain text, to:`}</text>
       <box height={1} />
       <input
-        width={dialogWidth - 6}
+        width={contentWidth}
         value={board.savePath}
         focused
         textColor={theme.text}
         focusedTextColor={theme.text}
         backgroundColor={theme.well}
         focusedBackgroundColor={theme.wellFocus}
-        cursorColor={theme.accent}
+        cursorColor={theme.cursor}
         onInput={(v) => board.setSavePath(v)}
       />
     </Dialog>
@@ -281,21 +304,26 @@ const HELP: [string, string][][] = [
   ],
 ]
 
+const helpColumns = (width: number) => (width >= 84 ? HELP : [HELP.flat()])
+
+/** A gap, the keys, a gap and two lines under them. */
+function helpRows(width: number): number {
+  return 1 + Math.max(...helpColumns(width).map((c) => c.length)) + 1 + 2
+}
+
 export function HelpDialog({ width, height }: { width: number; height: number }) {
-  const wide = width >= 84
-  const columns = wide ? HELP : [HELP.flat()]
-  const rows = Math.max(...columns.map((c) => c.length))
+  const columns = helpColumns(width)
   return (
-    <Dialog title="Keys" width={wide ? 82 : 44} height={rows + 5} screen={[width, height]}>
+    <Dialog title="Keys" width={columns.length > 1 ? 80 : 56} rows={helpRows(width)} screen={[width, height]}>
       <box flexDirection="row" gap={4}>
         {columns.map((col, i) => (
           <box key={i} flexDirection="column">
             {col.map(([key, action]) => (
-              <text key={key} wrapMode="none">
-                <span fg={theme.text} attributes={TextAttributes.BOLD}>
+              <text key={key} wrapMode="none" fg={theme.text}>
+                <span fg={theme.accent} attributes={BOLD}>
                   {key.padEnd(15)}
                 </span>
-                <span fg={theme.muted}>{action}</span>
+                <span fg={theme.text} attributes={DIM}>{action}</span>
               </text>
             ))}
           </box>
@@ -303,14 +331,18 @@ export function HelpDialog({ width, height }: { width: number; height: number })
       </box>
       <box height={1} />
       <text fg={theme.faint}>Mouse: click a project, scroll the logs, drag to copy.</text>
+      <text fg={theme.faint}>{`blueprint v${pkg.version}`}</text>
     </Dialog>
   )
 }
 
+/** A gap and the notice. */
+const QUITTING_ROWS = 2
+
 export function QuittingDialog({ board, width, height }: { board: Board; width: number; height: number }) {
   const n = board.m.runningCount()
   return (
-    <Dialog title="Quitting" width={44} height={5} screen={[width, height]}>
+    <Dialog title="Quitting" width={44} rows={QUITTING_ROWS} screen={[width, height]}>
       <text fg={theme.text}>{n ? `Stopping ${n} server${n === 1 ? "" : "s"}…` : "Done."}</text>
     </Dialog>
   )
